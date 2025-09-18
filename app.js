@@ -73,6 +73,7 @@ class GitWrite {
         
         // Queue for offline sync
         this.syncQueue = [];
+        this.notesHistory = [];
         this.isSyncing = false;
     }
 
@@ -157,6 +158,7 @@ class GitWrite {
         // Sidebar events
         document.getElementById('sidebar-close').addEventListener('click', this.closeSidebar.bind(this));
         document.getElementById('sync-now').addEventListener('click', this.syncNow.bind(this));
+        document.getElementById('search-notes').addEventListener('input', this.filterNotes.bind(this));
 
         // Settings modal events
         document.getElementById('font-size').addEventListener('input', this.updateFontSize.bind(this));
@@ -339,6 +341,7 @@ class GitWrite {
             const notes = request.result.sort((a, b) => 
                 new Date(b.timestamp) - new Date(a.timestamp)
             );
+            this.notesHistory = notes;
             this.renderNotesHistory(notes);
         };
     }
@@ -347,7 +350,7 @@ class GitWrite {
         if (notes.length === 0) {
             this.notesList.innerHTML = `
                 <div class="empty-state">
-                    <p>No notes yet. Start writing!</p>
+                    <p>No notes found. Start writing!</p>
                 </div>
             `;
             return;
@@ -376,6 +379,15 @@ class GitWrite {
                 </div>
             `;
         }).join('');
+    }
+
+    filterNotes(e) {
+        const searchTerm = e.target.value.toLowerCase();
+        const filteredNotes = this.notesHistory.filter(note => {
+            return note.title.toLowerCase().includes(searchTerm) || 
+                   note.content.toLowerCase().includes(searchTerm);
+        });
+        this.renderNotesHistory(filteredNotes);
     }
 
     // ================================

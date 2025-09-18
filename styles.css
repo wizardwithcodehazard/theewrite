@@ -347,13 +347,26 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 1.5rem 2rem 1rem;
+    padding: 1rem 1.5rem;
     border-bottom: 1px solid var(--border);
+    gap: 1rem;
 }
 
-.sidebar-header h3 {
-    font-size: 1.25rem;
-    font-weight: 600;
+#search-notes {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--border-radius);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    transition: var(--transition);
+}
+
+#search-notes:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-hover);
 }
 
 .notes-list {
