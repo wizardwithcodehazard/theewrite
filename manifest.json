@@ -14,14 +14,16 @@
   
   "icons": [
     {
-      "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkyIiBoZWlnaHQ9IjE5MiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMzYjgyZjYiIHN0cm9rZS13aWR0aD0iMiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEzIDJ2OGwtMyAzLTMtM1YyeiIvPgo8cGF0aCBkPSJNMTQgMTlhNiA2IDAgMSAwIDYtNmgtNnoiLz4KPHBhdGggZD0iTTEzIDEwSDZ2MTBoN3YtMXoiLz4KPHN2Zz4=",
+      "src": "./assets/web-app-manifest-192x192.png",
       "sizes": "192x192",
-      "type": "image/svg+xml"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
-      "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMzYjgyZjYiIHN0cm9rZS13aWR0aD0iMSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEzIDJ2OGwtMyAzLTMtM1YyeiIvPgo8cGF0aCBkPSJNMTQgMTlhNiA2IDAgMSAwIDYtNmgtNnoiLz4KPHBhdGggZD0iTTEzIDEwSDZ2MTBoN3YtMXoiLz4KPHN2Zz4=",
+      "src": "./assets/web-app-manifest-512x512.png",
       "sizes": "512x512",
-      "type": "image/svg+xml"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ],
   
