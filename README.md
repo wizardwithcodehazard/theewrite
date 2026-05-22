@@ -3,9 +3,9 @@
 <img width="917" height="524" alt="f2" src="https://github.com/user-attachments/assets/9dcdc31a-b948-46d9-bac9-d1504f4ba8a3" />
 <br>
 <br>
-TheeWrite is a premium, distraction-free web app that lets you freewrite your thoughts, ideas, or brain dumps—saving them **securely and completely offline** directly into your browser.
-
-Inspired by hardware freewriting devices, TheeWrite adds a beautiful, sensory-rich digital twist: your words stay entirely yours. No cloud snooping, no accounts, no subscriptions. Just pure, uninterrupted focus.
+TheeWrite is a premium, distraction-free web app that lets you freewrite your thoughts, ideas, or brain dumps—saving them <strong>securely and completely offline(soon transitioning into desktop app)</strong> directly into your browser.
+<br>
+TheeWrite adds a beautiful, sensory-rich digital twist: your words stay entirely yours. No cloud snooping, no accounts, no subscriptions. Just pure, uninterrupted focus.
 
 ---
 
