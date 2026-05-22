@@ -1,1159 +1,753 @@
-// ================================
-// GitWrite - Distraction-Free Writing App
-// ================================
+// TheeWrite — lean, private, local-first freewriting
+// Features: tags, reread mode, tag cloud, export PDF/MD/TXT, timer, sounds
+'use strict';
 
-class GitWrite {
-    constructor() {
-        this.initializeProperties();
-        this.initializeIndexedDB();
-        this.bindEvents();
-        this.loadSettings();
-        this.initializeAudio();
-        this.registerServiceWorker();
-        this.checkOnlineStatus();
-        this.restoreNote();
-        this.startAutosave();
-
-        this.rainSound = new RainSound();
-    }
-
-    // ================================
-    // Initialization
-    // ================================
-
-    initializeProperties() {
-        // DOM Elements
-        this.editor = document.getElementById('editor');
-        this.toolbar = document.getElementById('toolbar');
-        this.sidebar = document.getElementById('sidebar');
-        this.timer = document.getElementById('timer');
-        this.wordCount = document.getElementById('word-count');
-        this.syncIndicator = document.getElementById('sync-indicator');
-        this.queueCount = document.getElementById('queue-count');
-        this.notesList = document.getElementById('notes-list');
-        
-        // State
-        this.currentNote = {
-            id: null,
-            content: '',
-            timestamp: null,
-            title: ''
-        };
-        
-        this.timerState = {
-            isRunning: false,
-            timeLeft: 15 * 60, // 15 minutes in seconds
-            interval: null
-        };
-        
-        this.settings = {
-            fontSize: 18,
-            fontFamily: 'Lato',
-            timerDuration: 15,
-            autosaveInterval: 30,
-            theme: 'light',
-            typingSoundEnabled: false,
-            typingVolume: 50
-        };
-
-        this.github = {
-            token: '',
-            owner: '',
-            repo: '',
-            branch: '',
-            pathTemplate: 'notes/{{date}}.md',
-            commitMessage: 'Add note {{date}}',
-            rememberToken: false
-        };
-
-        // Debounce timers
-        this.autosaveTimeout = null;
-        this.wordCountTimeout = null;
-        this.typingAudio = null;
-        
-        // Queue for offline sync
-        this.syncQueue = [];
-        this.notesHistory = [];
-        this.isSyncing = false;
-    }
-
-    async initializeIndexedDB() {
-        return new Promise((resolve, reject) => {
-            const request = indexedDB.open('GitWriteDB', 1);
-            
-            request.onerror = () => reject(request.error);
-            request.onsuccess = () => {
-                this.db = request.result;
-                this.loadNotesHistory();
-                this.loadSyncQueue();
-                resolve();
-            };
-
-            request.onupgradeneeded = (event) => {
-                const db = event.target.result;
-                
-                // Notes store
-                if (!db.objectStoreNames.contains('notes')) {
-                    const notesStore = db.createObjectStore('notes', { keyPath: 'id' });
-                    notesStore.createIndex('timestamp', 'timestamp', { unique: false });
-                }
-                
-                // Sync queue store
-                if (!db.objectStoreNames.contains('queue')) {
-                    const queueStore = db.createObjectStore('queue', { keyPath: 'id' });
-                    queueStore.createIndex('createdAt', 'createdAt', { unique: false });
-                    queueStore.createIndex('status', 'status', { unique: false });
-                }
-            };
-        });
-    }
-
-    initializeAudio() {
-        this.rainSound = new RainSound();
-        
-        try {
-            // NOTE: You need to add a typing sound file at this path
-            this.typingAudio = new Audio('./audio/click.mp3');
-            this.typingAudio.volume = this.settings.typingVolume / 100;
-        } catch (e) {
-            console.error("Could not initialize typing sound", e);
-            this.typingAudio = null;
-        }
-    }
-
-    async registerServiceWorker() {
-        if ('serviceWorker' in navigator) {
-            try {
-                const registration = await navigator.serviceWorker.register('/sw.js');
-                console.log('ServiceWorker registration successful:', registration.scope);
-            } catch (error) {
-                console.warn('ServiceWorker registration failed:', error);
-                // Continue app execution even if SW fails
+// ══════════════════════════════════════════
+// DB
+// ══════════════════════════════════════════
+function openDB() {
+    return new Promise((res, rej) => {
+        const req = indexedDB.open('TheeWriteDB', 1);
+        req.onerror = () => rej(req.error);
+        req.onsuccess = () => res(req.result);
+        req.onupgradeneeded = e => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains('notes')) {
+                const s = db.createObjectStore('notes', { keyPath: 'id' });
+                s.createIndex('timestamp', 'timestamp');
             }
-        } else {
-            console.log('ServiceWorker is not supported');
-        }
-    }
-
-    // ================================
-    // Event Binding
-    // ================================
-
-    bindEvents() {
-        // Editor events
-        this.editor.addEventListener('input', this.handleEditorInput.bind(this));
-        this.editor.addEventListener('keydown', this.handleKeyboardShortcuts.bind(this));
-        this.editor.addEventListener('keydown', this.handleTyping.bind(this));
-
-        // Toolbar events
-        document.getElementById('new-note').addEventListener('click', this.newNote.bind(this));
-        document.getElementById('history-toggle').addEventListener('click', this.toggleSidebar.bind(this));
-        document.getElementById('timer-toggle').addEventListener('click', this.toggleTimer.bind(this));
-        document.getElementById('fullscreen-toggle').addEventListener('click', this.toggleFullscreen.bind(this));
-        document.getElementById('theme-toggle').addEventListener('click', this.toggleTheme.bind(this));
-        document.getElementById('settings-btn').addEventListener('click', () => this.openModal('settings-modal'));
-        document.getElementById('save-local').addEventListener('click', this.saveLocal.bind(this));
-        document.getElementById('save-github').addEventListener('click', this.saveToGitHub.bind(this));
-
-        // Sidebar events
-        document.getElementById('sidebar-close').addEventListener('click', this.closeSidebar.bind(this));
-        document.getElementById('sync-now').addEventListener('click', this.syncNow.bind(this));
-        document.getElementById('search-notes').addEventListener('input', this.filterNotes.bind(this));
-
-        // Settings modal events
-        document.getElementById('font-size').addEventListener('input', this.updateFontSize.bind(this));
-        document.getElementById('font-family').addEventListener('change', this.updateFontFamily.bind(this));
-        document.getElementById('timer-duration').addEventListener('change', this.updateTimerDuration.bind(this));
-        document.getElementById('autosave-interval').addEventListener('change', this.updateAutosaveInterval.bind(this));
-
-        // Typing sound settings
-        document.getElementById('typing-sound-enabled').addEventListener('change', this.updateTypingSoundEnabled.bind(this));
-        document.getElementById('typing-volume').addEventListener('input', this.updateTypingVolume.bind(this));
-
-        // GitHub modal events
-        document.getElementById('save-github-settings').addEventListener('click', this.saveGitHubSettings.bind(this));
-        document.getElementById('test-github').addEventListener('click', this.testGitHubConnection.bind(this));
-        document.getElementById('forget-token').addEventListener('click', this.forgetToken.bind(this));
-
-        // Global events
-        window.addEventListener('online', this.handleOnline.bind(this));
-        window.addEventListener('offline', this.handleOffline.bind(this));
-        window.addEventListener('beforeunload', this.handleBeforeUnload.bind(this));
-        document.addEventListener('keydown', this.handleGlobalKeyboard.bind(this));
-    }
-
-    // ================================
-    // Editor Functionality
-    // ================================
-
-    handleEditorInput() {
-        this.currentNote.content = this.editor.value;
-        this.updateWordCount();
-        this.scheduleAutosave();
-    }
-
-    handleTyping(e) {
-        if (!this.settings.typingSoundEnabled || !this.typingAudio) {
-            return;
-        }
-
-        // A list of keys that should not trigger the sound
-        const silentKeys = [
-            'Control', 'Meta', 'Alt', 'Shift', 'CapsLock', 'Tab', 'Escape',
-            'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
-            'Home', 'End', 'PageUp', 'PageDown',
-            'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12'
-        ];
-
-        if (silentKeys.includes(e.key)) {
-            return;
-        }
-
-        // To allow for rapid typing, we reset the audio and play it.
-        this.typingAudio.currentTime = 0;
-        this.typingAudio.play().catch(() => { /* Ignore autoplay errors */ });
-    }
-
-    updateWordCount() {
-        clearTimeout(this.wordCountTimeout);
-        this.wordCountTimeout = setTimeout(() => {
-            const words = this.editor.value
-                .trim()
-                .split(/\s+/)
-                .filter(word => word.length > 0).length;
-            this.wordCount.textContent = words === 1 ? '1 word' : `${words} words`;
-        }, 100);
-    }
-
-    scheduleAutosave() {
-        clearTimeout(this.autosaveTimeout);
-        this.autosaveTimeout = setTimeout(() => {
-            this.autosaveNote();
-        }, this.settings.autosaveInterval * 1000);
-    }
-
-    async autosaveNote() {
-        if (!this.editor.value.trim()) return;
-
-        const note = {
-            id: this.currentNote.id || this.generateId(),
-            content: this.editor.value,
-            timestamp: new Date().toISOString(),
-            title: this.generateTitle(this.editor.value),
-            wordCount: this.editor.value.trim().split(/\s+/).filter(w => w.length > 0).length
         };
+    });
+}
 
-        this.currentNote = note;
-        await this.saveNoteToIndexedDB(note);
-        this.loadNotesHistory();
+const dbOp = (db, stores, mode, fn) => new Promise((res, rej) => {
+    const tx = db.transaction(stores, mode);
+    const s  = tx.objectStore(stores[0]);
+    const req = fn(s);
+    req.onsuccess = () => res(req.result);
+    req.onerror   = () => rej(req.error);
+});
+
+const dbPut    = (db, n) => dbOp(db, ['notes'], 'readwrite', s => s.put(n));
+const dbGet    = (db, id) => dbOp(db, ['notes'], 'readonly',  s => s.get(id));
+const dbDelete = (db, id) => dbOp(db, ['notes'], 'readwrite', s => s.delete(id));
+const dbGetAll = (db) =>
+    new Promise((res, rej) => {
+        const req = db.transaction(['notes'], 'readonly')
+                      .objectStore('notes').index('timestamp').getAll();
+        req.onsuccess = () => res(req.result.sort((a,b) => b.timestamp.localeCompare(a.timestamp)));
+        req.onerror   = () => rej(req.error);
+    });
+
+// ══════════════════════════════════════════
+// Utilities
+// ══════════════════════════════════════════
+const $ = id => document.getElementById(id);
+const uid  = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+const wc   = t  => t.trim() ? t.trim().split(/\s+/).length : 0;
+const head = t  => { const l = t.split('\n')[0].trim(); return l.length > 64 ? l.slice(0,64)+'…' : l || 'Untitled'; };
+const fmtDate = iso => {
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})
+         + ' · ' + d.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+};
+
+// ── Toast ─────────────────────────────────
+let _toastT;
+const toast = (msg, type='') => {
+    clearTimeout(_toastT);
+    const el = $('toast');
+    el.textContent = msg;
+    el.className = 'show' + (type ? ' '+type : '');
+    _toastT = setTimeout(() => el.className = '', 2400);
+};
+
+// ══════════════════════════════════════════
+// App
+// ══════════════════════════════════════════
+class TheeWrite {
+    constructor(db) {
+        this.db = db;
+
+        // — cached DOM refs —
+        this.editorEl     = $('editor');
+        this.wcEl         = $('word-count');
+        this.timerEl      = $('timer');
+        this.tagPillsEl   = $('tag-pills');
+        this.tagInputEl   = $('tag-input');
+        this.sidebarEl    = $('sidebar');
+        this.notesListEl  = $('notes-list');
+        this.tagCloudEl   = $('tag-cloud-view');
+        this.overlayEl    = $('overlay');
+        this.settingsEl   = $('settings-modal');
+        this.searchEl     = $('search-notes');
+        this.tagFilterWrap = $('tag-filter-wrapper');
+        this.tagFilterSel  = $('tag-filter-selected');
+        this.tagFilterOpts = $('tag-filter-options');
+        this.ambientWrap  = $('ambient-sound-wrapper');
+        this.ambientSel   = $('ambient-sound-selected');
+        this.ambientOpts  = $('ambient-sound-options');
+        this.rereadEl     = $('reread-panel');
+        this.printEl      = $('print-area');
+
+        // — state —
+        this.note      = { id: null, content: '', tags: [] };
+        this.allNotes  = [];
+        this.tagFilter = '';
+        this.sideView  = 'list'; // 'list' | 'tagcloud'
+
+        this.timer = { running: false, left: 15*60, iv: null };
+
+        // — settings —
+        this.cfg = this.loadCfg();
+
+        // — audio —
+        this.clickAudio = null;
+        this.ambientAudio = null;
+        try {
+            this.clickAudio = new Audio('./audio/click.mp3');
+            this.clickAudio.volume = this.cfg.volume / 100;
+        } catch(_) {}
+
+        // — reread state —
+        this.rereadNotes = [];
+        this.rereadIdx   = 0;
+
+        // — popup tracking —
+        this._activePopup = null;
+
+        this.applyCfg();
+        this.bind();
+        this.loadHistory();
+        this.registerSW();
+        this.requestPersistence();
+        this.editorEl.focus();
     }
 
-    generateTitle(content) {
-        const firstLine = content.split('\n')[0].trim();
-        return firstLine.length > 50 ? firstLine.substring(0, 50) + '...' : firstLine || 'Untitled';
+    // ── Config ─────────────────────────────
+    loadCfg() {
+        const d = { fontSize:18, font:'Lato', timerMin:15, autosaveSec:30, sound:false, volume:50, ambientSound:'none' };
+        try { return { ...d, ...JSON.parse(localStorage.getItem('gw-cfg')||'{}') }; }
+        catch(_) { return d; }
     }
+    saveCfg() { localStorage.setItem('gw-cfg', JSON.stringify(this.cfg)); }
 
-    generateId() {
-        return Date.now().toString(36) + Math.random().toString(36).substr(2);
-    }
-
-    // ================================
-    // Note Management
-    // ================================
-
-    newNote() {
-        if (this.editor.value.trim()) {
-            this.autosaveNote();
-        }
-        
-        this.currentNote = {
-            id: null,
-            content: '',
-            timestamp: null,
-            title: ''
-        };
-        
-        this.editor.value = '';
-        this.editor.focus();
-        this.updateWordCount();
-        this.showNotification('New note started', 'success');
-    }
-
-    async loadNote(noteId) {
-        const transaction = this.db.transaction(['notes'], 'readonly');
-        const store = transaction.objectStore('notes');
-        const request = store.get(noteId);
-
-        return new Promise((resolve, reject) => {
-            request.onsuccess = () => {
-                const note = request.result;
-                if (note) {
-                    this.currentNote = note;
-                    this.editor.value = note.content;
-                    this.updateWordCount();
-                    this.editor.focus();
-                    this.closeSidebar();
-                    resolve(note);
-                } else {
-                    reject(new Error('Note not found'));
-                }
-            };
-            request.onerror = () => reject(request.error);
-        });
-    }
-
-    async deleteNote(noteId) {
-        if (!confirm('Are you sure you want to delete this note?')) return;
-
-        const transaction = this.db.transaction(['notes'], 'readwrite');
-        const store = transaction.objectStore('notes');
-        
-        await new Promise((resolve, reject) => {
-            const request = store.delete(noteId);
-            request.onsuccess = () => resolve();
-            request.onerror = () => reject(request.error);
-        });
-
-        this.loadNotesHistory();
-        this.showNotification('Note deleted', 'success');
-    }
-
-    async saveNoteToIndexedDB(note) {
-        const transaction = this.db.transaction(['notes'], 'readwrite');
-        const store = transaction.objectStore('notes');
-        
-        return new Promise((resolve, reject) => {
-            const request = store.put(note);
-            request.onsuccess = () => resolve();
-            request.onerror = () => reject(request.error);
-        });
-    }
-
-    async loadNotesHistory() {
-        if (!this.db) return;
-
-        const transaction = this.db.transaction(['notes'], 'readonly');
-        const store = transaction.objectStore('notes');
-        const index = store.index('timestamp');
-        const request = index.getAll();
-
-        request.onsuccess = () => {
-            const notes = request.result.sort((a, b) => 
-                new Date(b.timestamp) - new Date(a.timestamp)
-            );
-            this.notesHistory = notes;
-            this.renderNotesHistory(notes);
-        };
-    }
-
-    renderNotesHistory(notes) {
-        if (notes.length === 0) {
-            this.notesList.innerHTML = `
-                <div class="empty-state">
-                    <p>No notes found. Start writing!</p>
-                </div>
-            `;
-            return;
-        }
-
-        this.notesList.innerHTML = notes.map(note => {
-            const date = new Date(note.timestamp).toLocaleDateString();
-            const time = new Date(note.timestamp).toLocaleTimeString([], { 
-                hour: '2-digit', 
-                minute: '2-digit' 
+    applyCfg() {
+        const c = this.cfg;
+        this.editorEl.style.fontSize = c.fontSize + 'px';
+        this.setFont(c.font, false);
+        // sync settings panel
+        $('font-size').value         = c.fontSize;
+        $('font-size-val').textContent = c.fontSize + 'px';
+        $('font-size-label').textContent = c.fontSize + 'px';
+        $('timer-duration').value    = c.timerMin;
+        $('autosave-interval').value = c.autosaveSec;
+        $('typing-sound-enabled').checked = c.sound;
+        $('typing-volume').value     = c.volume;
+        $('vol-val').textContent     = c.volume + '%';
+        if (this.ambientSel && this.ambientOpts) {
+            const opt = this.ambientOpts.querySelector(`div[data-val="${c.ambientSound}"]`);
+            if (opt) this.ambientSel.textContent = opt.textContent;
+            this.ambientOpts.querySelectorAll('div').forEach(el => {
+                el.classList.toggle('selected', el.dataset.val === c.ambientSound);
             });
-            const isQueued = this.isNoteQueued(note.id);
+        }
+        this.timer.left = c.timerMin * 60;
+        this.updateTimerDisplay();
+    }
 
-            return `
-                <div class="note-item ${isQueued ? 'queued' : ''}" data-note-id="${note.id}">
-                    <div class="note-meta">
-                        <span>${date} at ${time}</span>
-                        <span>${note.wordCount || 0} words</span>
-                    </div>
-                    <div class="note-preview">${note.title}</div>
-                    <div class="note-actions">
-                        <button class="btn btn-small" onclick="gitwrite.loadNote('${note.id}')">Open</button>
-                        <button class="btn btn-small" onclick="gitwrite.downloadNote('${note.id}')">Download</button>
-                        <button class="btn btn-small btn-danger" onclick="gitwrite.deleteNote('${note.id}')">Delete</button>
-                    </div>
+    // ── Font ───────────────────────────────
+    setFont(name, save=true) {
+        this.cfg.font = name;
+        this.editorEl.className = 'font-' + name;
+        // update active state in toolbar
+        document.querySelectorAll('.font-opt').forEach(b => {
+            b.classList.toggle('active', b.dataset.font === name);
+        });
+        if (save) this.saveCfg();
+    }
+
+    // ── Bind all events ────────────────────
+    bind() {
+        // Editor input
+        this.editorEl.addEventListener('input', () => {
+            this.note.content = this.editorEl.value;
+            this.schedWC();
+            this.schedSave();
+        });
+
+        // Typing sound
+        this.editorEl.addEventListener('keydown', e => {
+            if (!this.cfg.sound || !this.clickAudio) return;
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+            const skip = ['Shift','Control','Alt','Meta','CapsLock','Tab','Escape',
+                          'ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key);
+            if (skip) return;
+            this.clickAudio.currentTime = 0;
+            this.clickAudio.play().catch(()=>{});
+        });
+
+        // Toolbar buttons
+        $('btn-new').addEventListener('click', () => this.newNote());
+        $('btn-history').addEventListener('click', () => this.toggleSidebar());
+        $('btn-timer').addEventListener('click', () => this.toggleTimer());
+        $('btn-fullscreen').addEventListener('click', () => this.toggleFullscreen());
+        $('btn-settings').addEventListener('click', () => this.openSettings());
+        $('btn-save').addEventListener('click', () => this.downloadCurrent());
+        $('btn-reread').addEventListener('click', () => this.openReread());
+
+        // Font opts
+        document.querySelectorAll('.font-opt').forEach(b => {
+            b.addEventListener('click', () => this.setFont(b.dataset.font));
+        });
+
+        // Font size popup
+        $('btn-fontsize').addEventListener('click', e => {
+            e.stopPropagation();
+            this.togglePopup('fontsize-popup', e.target);
+        });
+        document.querySelectorAll('.size-opt').forEach(b => {
+            b.addEventListener('click', () => {
+                const sz = +b.dataset.size;
+                if (!sz) return;
+                this.cfg.fontSize = sz;
+                this.editorEl.style.fontSize = sz + 'px';
+                $('font-size').value = sz;
+                $('font-size-val').textContent = sz + 'px';
+                $('font-size-label').textContent = sz + 'px';
+                this.saveCfg();
+                this.closePopup();
+            });
+        });
+
+        // Export popup
+        $('btn-export').addEventListener('click', e => {
+            e.stopPropagation();
+            this.togglePopup('export-popup', e.target);
+        });
+        $('export-md').addEventListener('click',  () => { this.closePopup(); this.download('md');  });
+        $('export-txt').addEventListener('click', () => { this.closePopup(); this.download('txt'); });
+        $('export-pdf').addEventListener('click', () => { this.closePopup(); this.exportPDF();     });
+
+        // Click outside → close popup
+        document.addEventListener('click', e => {
+            if (this._activePopup && !$('btn-fontsize').contains(e.target)
+                                   && !$('btn-export').contains(e.target)) {
+                this.closePopup();
+            }
+        });
+
+        // Tags
+        this.tagInputEl.addEventListener('keydown', e => {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            const tag = e.target.value.trim().toLowerCase().replace(/\s+/g, '-');
+            if (tag && !this.note.tags.includes(tag)) {
+                this.note.tags.push(tag);
+                this.renderPills();
+                this.schedSave();
+            }
+            e.target.value = '';
+        });
+
+        // Sidebar
+        $('btn-sidebar-close').addEventListener('click', () => this.closeSidebar());
+        this.searchEl.addEventListener('input',  () => this.renderHistory());
+        
+        // Sidebar custom dropdown
+        this.tagFilterSel.addEventListener('click', e => {
+            e.stopPropagation();
+            this.tagFilterWrap.classList.toggle('active');
+            this.tagFilterOpts.classList.toggle('hidden');
+            this.closePopup();
+        });
+        document.addEventListener('click', e => {
+            if (!this.tagFilterWrap.contains(e.target)) {
+                this.tagFilterWrap.classList.remove('active');
+                this.tagFilterOpts.classList.add('hidden');
+            }
+        });
+
+        // Sidebar tabs
+        document.querySelectorAll('.stab').forEach(btn => {
+            btn.addEventListener('click', () => {
+                this.sideView = btn.dataset.view;
+                document.querySelectorAll('.stab').forEach(b => b.classList.toggle('active', b === btn));
+                $('notes-list').classList.toggle('hidden',   this.sideView !== 'list');
+                $('tag-cloud-view').classList.toggle('hidden', this.sideView !== 'tagcloud');
+                if (this.sideView === 'tagcloud') this.renderTagCloud();
+            });
+        });
+
+        // Reread nav
+        $('btn-reread-close').addEventListener('click', () => this.closeReread());
+        $('btn-reread-prev').addEventListener('click',  () => this.rereadGo(-1));
+        $('btn-reread-next').addEventListener('click',  () => this.rereadGo(+1));
+
+        // Overlay
+        this.overlayEl.addEventListener('click', () => {
+            this.closeSidebar();
+            this.closeSettings();
+        });
+
+        // Settings
+        this.settingsEl.addEventListener('click', e => {
+            if (e.target === this.settingsEl) this.closeSettings();
+        });
+        this.settingsEl.querySelector('.modal-close').addEventListener('click', () => this.closeSettings());
+
+        $('font-size').addEventListener('input', () => {
+            const sz = +$('font-size').value;
+            this.cfg.fontSize = sz;
+            this.editorEl.style.fontSize = sz + 'px';
+            $('font-size-val').textContent = sz + 'px';
+            $('font-size-label').textContent = sz + 'px';
+            this.saveCfg();
+        });
+        $('timer-duration').addEventListener('change', () => {
+            this.cfg.timerMin = +$('timer-duration').value;
+            if (!this.timer.running) {
+                this.timer.left = this.cfg.timerMin * 60;
+                this.updateTimerDisplay();
+            }
+            this.saveCfg();
+        });
+        $('autosave-interval').addEventListener('change', () => {
+            this.cfg.autosaveSec = +$('autosave-interval').value;
+            this.saveCfg();
+        });
+        $('typing-sound-enabled').addEventListener('change', () => {
+            this.cfg.sound = $('typing-sound-enabled').checked;
+            this.saveCfg();
+        });
+        $('typing-volume').addEventListener('input', () => {
+            this.cfg.volume = +$('typing-volume').value;
+            $('vol-val').textContent = this.cfg.volume + '%';
+            if (this.clickAudio) this.clickAudio.volume = this.cfg.volume / 100;
+            if (this.ambientAudio) this.ambientAudio.volume = this.cfg.volume / 100;
+            this.saveCfg();
+        });
+
+        if (this.ambientWrap && this.ambientSel && this.ambientOpts) {
+            this.ambientSel.addEventListener('click', e => {
+                e.stopPropagation();
+                this.ambientWrap.classList.toggle('active');
+                this.ambientOpts.classList.toggle('hidden');
+                this.closePopup();
+            });
+            this.ambientOpts.querySelectorAll('div').forEach(el => {
+                el.addEventListener('click', () => {
+                    const val = el.dataset.val;
+                    this.cfg.ambientSound = val;
+                    this.ambientSel.textContent = el.textContent;
+                    this.ambientOpts.querySelectorAll('div').forEach(o => o.classList.toggle('selected', o === el));
+                    this.ambientWrap.classList.remove('active');
+                    this.ambientOpts.classList.add('hidden');
+                    this.saveCfg();
+                    if (this.timer.running) this.playAmbient();
+                });
+            });
+            document.addEventListener('click', e => {
+                if (!this.ambientWrap.contains(e.target)) {
+                    this.ambientWrap.classList.remove('active');
+                    this.ambientOpts.classList.add('hidden');
+                }
+            });
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                this.closePopup();
+                if (!this.rereadEl.classList.contains('hidden')) { this.closeReread(); return; }
+                this.closeSidebar(); this.closeSettings(); return;
+            }
+            const mod = e.ctrlKey || e.metaKey;
+            if (!mod) return;
+            if (e.key === 'n') { e.preventDefault(); this.newNote(); }
+            if (e.key === 'h') { e.preventDefault(); this.toggleSidebar(); }
+            if (e.key === 's') { e.preventDefault(); this.downloadCurrent(); }
+        });
+
+        window.addEventListener('beforeunload', e => {
+            if (this.editorEl.value.trim() && this.editorEl.value !== this.note.content) {
+                e.preventDefault(); e.returnValue = '';
+            }
+        });
+    }
+
+    // ── Popup management ───────────────────
+    togglePopup(id, anchor) {
+        if (this._activePopup === id) { this.closePopup(); return; }
+        this.closePopup();
+        const el = $(id);
+        el.classList.remove('hidden');
+        // position above anchor
+        const r = anchor.closest ? anchor.closest('button, div') || anchor : anchor;
+        const rect = r.getBoundingClientRect();
+        el.style.left = rect.left + 'px';
+        this._activePopup = id;
+    }
+    closePopup() {
+        if (!this._activePopup) return;
+        const el = $(this._activePopup);
+        if (el) el.classList.add('hidden');
+        this._activePopup = null;
+    }
+
+    // ── Word count (debounced) ─────────────
+    schedWC() {
+        clearTimeout(this._wcT);
+        this._wcT = setTimeout(() => {
+            const n = wc(this.editorEl.value);
+            this.wcEl.textContent = n === 1 ? '1 word' : n + ' words';
+        }, 120);
+    }
+
+    // ── Autosave (debounced) ───────────────
+    schedSave() {
+        clearTimeout(this._saveT);
+        this._saveT = setTimeout(() => this.saveNote(), this.cfg.autosaveSec * 1000);
+    }
+
+    async saveNote() {
+        if (!this.editorEl.value.trim()) return;
+        const note = {
+            id:        this.note.id || uid(),
+            content:   this.editorEl.value,
+            timestamp: new Date().toISOString(),
+            title:     head(this.editorEl.value),
+            wordCount: wc(this.editorEl.value),
+            tags:      [...(this.note.tags || [])],
+            font:      this.cfg.font || 'Lato'
+        };
+        this.note.id = note.id;
+        await dbPut(this.db, note);
+        // Only refresh allNotes in memory — don't re-render sidebar unless open
+        this.allNotes = await dbGetAll(this.db);
+        this.refreshTagFilter();
+        if (this.sidebarEl.classList.contains('open')) this.renderHistory();
+    }
+
+    // ── New note ───────────────────────────
+    newNote() {
+        if (this.editorEl.value.trim()) this.saveNote();
+        this.note = { id: null, content: '', tags: [] };
+        this.editorEl.value = '';
+        this.tagPillsEl.innerHTML = '';
+        this.schedWC();
+        this.editorEl.focus();
+        toast('New note started');
+    }
+
+    // ── Open note from history ─────────────
+    async openNote(id) {
+        const note = await dbGet(this.db, id);
+        if (!note) return;
+        if (this.editorEl.value.trim()) await this.saveNote();
+        this.note = { id: note.id, content: note.content, tags: note.tags || [] };
+        this.editorEl.value = note.content;
+        this.schedWC();
+        this.renderPills();
+        this.closeSidebar();
+        this.editorEl.focus();
+        // highlight active note
+        document.querySelectorAll('.note-item').forEach(el =>
+            el.classList.toggle('active-note', el.dataset.id === id));
+    }
+
+    async deleteNote(id) {
+        if (!confirm('Delete this note permanently?')) return;
+        await dbDelete(this.db, id);
+        if (this.note.id === id) this.newNote();
+        this.allNotes = await dbGetAll(this.db);
+        this.refreshTagFilter();
+        this.renderHistory();
+        toast('Deleted', 'danger');
+    }
+
+    // ── Download / Export ──────────────────
+    download(ext, content, filename) {
+        const text    = content  || this.editorEl.value.trim();
+        const fname   = filename || ('note-' + new Date().toISOString().replace(/[:.]/g,'-') + '.' + ext);
+        const mime    = ext === 'md' ? 'text/markdown' : 'text/plain';
+        if (!text) { toast('Nothing to save', 'warn'); return; }
+        const a = Object.assign(document.createElement('a'), {
+            href: URL.createObjectURL(new Blob([text], {type: mime})),
+            download: fname
+        });
+        a.click(); URL.revokeObjectURL(a.href);
+        toast('Downloaded!', 'success');
+    }
+
+    downloadCurrent() { this.download('md'); }
+
+    exportPDF() {
+        const content = this.editorEl.value.trim();
+        if (!content) { toast('Nothing to print', 'warn'); return; }
+        const el = this.printEl;
+        el.innerHTML = `
+            <div class="print-title">${head(content)}</div>
+            <div class="print-meta">${fmtDate(new Date().toISOString())} · ${wc(content)} words</div>
+            <div>${content}</div>
+        `;
+        el.classList.remove('hidden');
+        window.print();
+        setTimeout(() => el.classList.add('hidden'), 500);
+    }
+
+    // ── History ────────────────────────────
+    async loadHistory() {
+        this.allNotes = await dbGetAll(this.db);
+        this.refreshTagFilter();
+    }
+
+    refreshTagFilter() {
+        const tags = [...new Set(this.allNotes.flatMap(n => n.tags||[]))].sort();
+        const cur  = this.tagFilter;
+        this.tagFilterOpts.innerHTML = `<div data-val="" class="${cur===''?'selected':''}">All tags</div>`
+            + tags.map(t => `<div data-val="${t}" class="${t===cur?'selected':''}">${t}</div>`).join('');
+            
+        this.tagFilterOpts.querySelectorAll('div').forEach(el => {
+            el.addEventListener('click', () => {
+                this.filterByTag(el.dataset.val, el.textContent);
+                this.tagFilterWrap.classList.remove('active');
+                this.tagFilterOpts.classList.add('hidden');
+            });
+        });
+        
+        this.tagFilterSel.textContent = cur ? cur : 'All tags';
+    }
+
+    renderHistory() {
+        const q   = this.searchEl.value.toLowerCase();
+        const tag = this.tagFilter;
+        const filtered = this.allNotes.filter(n => {
+            const mq  = !q   || n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q);
+            const mt  = !tag || (n.tags||[]).includes(tag);
+            return mq && mt;
+        });
+
+        if (!filtered.length) {
+            this.notesListEl.innerHTML = '<div class="empty-state">No notes yet.<br>Start writing — it\'s saved automatically.</div>';
+            return;
+        }
+
+        this.notesListEl.innerHTML = filtered.map(n => `
+            <div class="note-item" data-id="${n.id}">
+                <div class="note-meta">
+                    <span>${fmtDate(n.timestamp)}</span>
+                    <span>${n.wordCount||0} words</span>
                 </div>
-            `;
+                <div class="note-title">${n.title}</div>
+                ${(n.tags||[]).length ? `<div class="note-tags">${n.tags.map(t=>`<span class="tag-chip">${t}</span>`).join('')}</div>` : ''}
+                <div class="note-actions">
+                    <button class="note-btn" onclick="app.openNote('${n.id}')">Open</button>
+                    <button class="note-btn" onclick="app.rereadNote('${n.id}')">Reread</button>
+                    <button class="note-btn" onclick="app.download('md','${this._esc(n.content)}','note.md')">↓ md</button>
+                    <button class="note-btn danger" onclick="app.deleteNote('${n.id}')">Delete</button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    _esc(s) { return s.replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+
+    // ── Tag Cloud ──────────────────────────
+    renderTagCloud() {
+        const freq = {};
+        this.allNotes.forEach(n => (n.tags||[]).forEach(t => { freq[t] = (freq[t]||0) + 1; }));
+        const tags = Object.entries(freq).sort((a,b) => b[1]-a[1]);
+
+        if (!tags.length) {
+            this.tagCloudEl.innerHTML = '<div class="empty-state">No tags yet.<br>Add tags while writing above.</div>';
+            return;
+        }
+
+        const max = tags[0][1];
+        this.tagCloudEl.innerHTML = tags.map(([t, c]) => {
+            const sz = 12 + Math.round((c/max) * 18); // 12–30px
+            return `<span class="cloud-tag" style="font-size:${sz}px" onclick="app.filterByTag('${t}')" title="${c} note${c>1?'s':''}">
+                ${t}<sup class="cloud-count">${c}</sup>
+            </span>`;
         }).join('');
     }
 
-    filterNotes(e) {
-        const searchTerm = e.target.value.toLowerCase();
-        const filteredNotes = this.notesHistory.filter(note => {
-            return note.title.toLowerCase().includes(searchTerm) || 
-                   note.content.toLowerCase().includes(searchTerm);
-        });
-        this.renderNotesHistory(filteredNotes);
+    filterByTag(tag, label) {
+        this.tagFilter = tag;
+        this.sideView = 'list';
+        document.querySelectorAll('.stab').forEach(b =>
+            b.classList.toggle('active', b.dataset.view === 'list'));
+        $('notes-list').classList.remove('hidden');
+        $('tag-cloud-view').classList.add('hidden');
+        this.refreshTagFilter();
+        this.renderHistory();
+        toast(`Showing: ${label || (tag ? tag : 'All tags')}`);
     }
 
-    // ================================
-    // Save Functionality
-    // ================================
+    // ── Tags ───────────────────────────────
+    renderPills() {
+        this.tagPillsEl.innerHTML = (this.note.tags||[]).map(t => `
+            <span class="tag-pill">${t}
+                <button type="button" onclick="app.removeTag('${t}')" aria-label="Remove">×</button>
+            </span>
+        `).join('');
+    }
+    removeTag(tag) {
+        this.note.tags = this.note.tags.filter(t => t !== tag);
+        this.renderPills();
+        this.schedSave();
+    }
 
-    async saveLocal() {
-        const content = this.editor.value.trim();
-        if (!content) {
-            this.showNotification('Nothing to save', 'warning');
-            return;
-        }
+    // ── Sidebar ────────────────────────────
+    toggleSidebar() {
+        this.sidebarEl.classList.contains('open') ? this.closeSidebar() : this.openSidebar();
+    }
+    openSidebar() {
+        this.renderHistory();
+        if (this.sideView === 'tagcloud') this.renderTagCloud();
+        this.sidebarEl.classList.add('open');
+        this.overlayEl.classList.add('active');
+    }
+    closeSidebar() {
+        this.sidebarEl.classList.remove('open');
+        if (!this.settingsEl.classList.contains('open')) this.overlayEl.classList.remove('active');
+    }
 
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const filename = `note-${timestamp}.md`;
+    // ── Settings ───────────────────────────
+    openSettings() {
+        this.settingsEl.classList.remove('hidden');
+        this.settingsEl.classList.add('open');
+        this.overlayEl.classList.add('active');
+    }
+    closeSettings() {
+        this.settingsEl.classList.add('hidden');
+        this.settingsEl.classList.remove('open');
+        if (!this.sidebarEl.classList.contains('open')) this.overlayEl.classList.remove('active');
+    }
+
+    // ── Reread mode ────────────────────────
+    async openReread(startId) {
+        this.rereadNotes = [...this.allNotes];
+        if (!this.rereadNotes.length) { toast('No saved notes yet', 'warn'); return; }
+        this.rereadIdx = startId
+            ? Math.max(0, this.rereadNotes.findIndex(n => n.id === startId))
+            : 0;
+        this.rereadEl.classList.remove('hidden');
+        this.renderReread();
+    }
+
+    async rereadNote(id) {
+        this.closeSidebar();
+        await this.openReread(id);
+    }
+
+    renderReread() {
+        const n = this.rereadNotes[this.rereadIdx];
+        if (!n) return;
+        $('reread-title').textContent = n.title;
+        $('reread-meta').textContent  = fmtDate(n.timestamp) + '  ·  ' + (n.wordCount||wc(n.content)) + ' words';
+        $('reread-content').textContent = n.content;
         
-        const blob = new Blob([content], { type: 'text/markdown' });
-        const url = URL.createObjectURL(blob);
+        const f = n.font || 'Playfair';
+        $('reread-content').className = 'font-' + f;
         
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
-        
-        URL.revokeObjectURL(url);
-        this.showNotification('Note downloaded successfully', 'success');
+        $('reread-count').textContent   = `${this.rereadIdx+1} / ${this.rereadNotes.length}`;
+        $('reread-body').scrollTop = 0;
     }
 
-    async downloadNote(noteId) {
-        const transaction = this.db.transaction(['notes'], 'readonly');
-        const store = transaction.objectStore('notes');
-        const request = store.get(noteId);
-
-        request.onsuccess = () => {
-            const note = request.result;
-            if (note) {
-                const timestamp = new Date(note.timestamp).toISOString().replace(/[:.]/g, '-');
-                const filename = `note-${timestamp}.md`;
-                
-                const blob = new Blob([note.content], { type: 'text/markdown' });
-                const url = URL.createObjectURL(blob);
-                
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = filename;
-                a.click();
-                
-                URL.revokeObjectURL(url);
-                this.showNotification('Note downloaded successfully', 'success');
-            }
-        };
+    rereadGo(dir) {
+        this.rereadIdx = Math.max(0, Math.min(this.rereadNotes.length-1, this.rereadIdx + dir));
+        this.renderReread();
     }
 
-    async saveToGitHub() {
-        try {
-            if (!this.github?.token) {
-                this.openModal('github-modal');
-                return;
-            }
-
-            const content = this.editor.value;
-            if (!content.trim()) {
-                this.showNotification('Cannot save empty note', 'error');
-                return;
-            }
-
-            const githubService = new GitHubService(this.github.token);
-            const date = new Date().toISOString().split('T')[0];
-            
-            // Process templates
-            const path = this.processTemplate(this.github.pathTemplate, { date });
-            const message = this.processTemplate(this.github.commitMessage, { date });
-
-            this.showNotification('Saving to GitHub...', 'info');
-
-            await githubService.createOrUpdateFile(
-                this.github.owner,
-                this.github.repo,
-                path,
-                content,
-                message,
-                this.github.branch
-            );
-
-            this.showNotification('Saved to GitHub successfully', 'success');
-        } catch (error) {
-            console.error('Failed to save to GitHub:', error);
-            this.showNotification(`GitHub save failed: ${error.message}`, 'error');
-            
-            // Add to sync queue if offline
-            if (!navigator.onLine) {
-                await this.addToSyncQueue({
-                    type: 'github',
-                    content: this.editor.value,
-                    timestamp: new Date().toISOString()
-                });
-                this.showNotification('Added to sync queue', 'warning');
-            }
-        }
+    closeReread() {
+        this.rereadEl.classList.add('hidden');
     }
 
-    processTemplate(template) {
-        const now = new Date();
-        const date = now.toISOString().split('T')[0];
-        const timestamp = now.toISOString().replace(/[:.]/g, '-');
-        
-        return template
-            .replace(/\{\{date\}\}/g, date)
-            .replace(/\{\{timestamp\}\}/g, timestamp);
+    // ── Timer ──────────────────────────────
+    updateTimerDisplay() {
+        const m = Math.floor(this.timer.left / 60);
+        const s = String(this.timer.left % 60).padStart(2,'0');
+        const display = `${m}:${s}`;
+        $('btn-timer').textContent = display;
+        this.timerEl.textContent   = display;
     }
-
-    // ================================
-    // GitHub API Integration
-    // ================================
-
-    async testGitHubConnection() {
-        const token = document.getElementById('github-token').value;
-        const owner = document.getElementById('github-owner').value;
-        const repo = document.getElementById('github-repo').value;
-
-        if (!token || !owner || !repo) {
-            this.showNotification('Please fill in all required fields', 'error');
-            return;
-        }
-
-        try {
-            const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
-                headers: {
-                    'Authorization': `token ${token}`,
-                    'Accept': 'application/vnd.github.v3+json'
-                }
-            });
-
-            if (response.ok) {
-                const repoData = await response.json();
-                this.showNotification(`Connected to ${repoData.full_name}`, 'success');
-                
-                // Auto-fill branch if empty
-                if (!document.getElementById('github-branch').value) {
-                    document.getElementById('github-branch').value = repoData.default_branch;
-                }
-            } else {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-        } catch (error) {
-            this.showNotification(`Connection failed: ${error.message}`, 'error');
-        }
-    }
-
-    async commitToGitHub(job) {
-        try {
-            // Get default branch if not specified
-            let branch = job.branch;
-            if (!branch) {
-                const repoResponse = await fetch(`https://api.github.com/repos/${job.owner}/${job.repo}`, {
-                    headers: {
-                        'Authorization': `token ${job.token}`,
-                        'Accept': 'application/vnd.github.v3+json'
-                    }
-                });
-                
-                if (repoResponse.ok) {
-                    const repoData = await repoResponse.json();
-                    branch = repoData.default_branch;
-                }
-            }
-
-            // Check if file exists to get SHA
-            let sha = null;
-            const fileResponse = await fetch(
-                `https://api.github.com/repos/${job.owner}/${job.repo}/contents/${job.path}?ref=${branch}`,
-                {
-                    headers: {
-                        'Authorization': `token ${job.token}`,
-                        'Accept': 'application/vnd.github.v3+json'
-                    }
-                }
-            );
-
-            if (fileResponse.ok) {
-                const fileData = await fileResponse.json();
-                sha = fileData.sha;
-            }
-
-            // Create or update file using UTF-8 safe base64 encoding
-            const content = utf8ToBase64(job.content);
-            const payload = {
-                message: job.commitMessage,
-                content: content,
-                branch: branch
-            };
-
-            if (sha) {
-                payload.sha = sha;
-            }
-
-            const commitResponse = await fetch(
-                `https://api.github.com/repos/${job.owner}/${job.repo}/contents/${job.path}`,
-                {
-                    method: 'PUT',
-                    headers: {
-                        'Authorization': `token ${job.token}`,
-                        'Accept': 'application/vnd.github.v3+json',
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(payload)
-                }
-            );
-
-            if (commitResponse.ok) {
-                const result = await commitResponse.json();
-                return { success: true, data: result };
-            } else {
-                const error = await commitResponse.json();
-                throw new Error(error.message || `HTTP ${commitResponse.status}`);
-            }
-        } catch (error) {
-            return { success: false, error: error.message };
-        }
-    }
-
-    // ================================
-    // Sync Queue Management
-    // ================================
-
-    async addToSyncQueue(job) {
-        const transaction = this.db.transaction(['queue'], 'readwrite');
-        const store = transaction.objectStore('queue');
-        
-        return new Promise((resolve, reject) => {
-            const request = store.put(job);
-            request.onsuccess = () => {
-                this.loadSyncQueue();
-                resolve();
-            };
-            request.onerror = () => reject(request.error);
-        });
-    }
-
-    async loadSyncQueue() {
-        if (!this.db) return;
-
-        const transaction = this.db.transaction(['queue'], 'readonly');
-        const store = transaction.objectStore('queue');
-        const request = store.getAll();
-
-        request.onsuccess = () => {
-            this.syncQueue = request.result;
-            this.updateSyncUI();
-        };
-    }
-
-    async processSyncQueue() {
-        if (this.isSyncing || !navigator.onLine) return;
-
-        const pendingJobs = this.syncQueue.filter(job => job.status === 'pending');
-        if (pendingJobs.length === 0) return;
-
-        this.isSyncing = true;
-        this.updateSyncIndicator('syncing');
-
-        for (const job of pendingJobs) {
-            const result = await this.commitToGitHub(job);
-            
-            if (result.success) {
-                await this.updateQueueJob(job.id, { status: 'completed' });
-                this.showNotification('Note synced to GitHub', 'success');
-            } else {
-                await this.updateQueueJob(job.id, { 
-                    status: 'failed', 
-                    error: result.error 
-                });
-                this.showNotification(`Sync failed: ${result.error}`, 'error');
-            }
-        }
-
-        await this.loadSyncQueue();
-        this.isSyncing = false;
-        this.updateSyncIndicator(navigator.onLine ? 'online' : 'offline');
-    }
-
-    async updateQueueJob(jobId, updates) {
-        const transaction = this.db.transaction(['queue'], 'readwrite');
-        const store = transaction.objectStore('queue');
-        const getRequest = store.get(jobId);
-
-        return new Promise((resolve, reject) => {
-            getRequest.onsuccess = () => {
-                const job = getRequest.result;
-                if (job) {
-                    Object.assign(job, updates);
-                    const putRequest = store.put(job);
-                    putRequest.onsuccess = () => resolve();
-                    putRequest.onerror = () => reject(putRequest.error);
-                } else {
-                    reject(new Error('Job not found'));
-                }
-            };
-            getRequest.onerror = () => reject(getRequest.error);
-        });
-    }
-
-    async clearCompletedJobs() {
-        const transaction = this.db.transaction(['queue'], 'readwrite');
-        const store = transaction.objectStore('queue');
-        const index = store.index('status');
-        const request = index.getAll('completed');
-
-        request.onsuccess = () => {
-            const completedJobs = request.result;
-            completedJobs.forEach(job => {
-                store.delete(job.id);
-            });
-            this.loadSyncQueue();
-        };
-    }
-
-    updateSyncUI() {
-        const pendingJobs = this.syncQueue.filter(job => job.status === 'pending');
-        const queueInfo = document.getElementById('queue-info');
-
-        if (pendingJobs.length > 0) {
-            this.queueCount.textContent = pendingJobs.length;
-            this.queueCount.classList.remove('hidden');
-            queueInfo.textContent = `${pendingJobs.length} notes pending sync`;
-        } else {
-            this.queueCount.classList.add('hidden');
-            queueInfo.textContent = 'No pending syncs';
-        }
-
-        this.loadNotesHistory(); // Refresh to show queue status
-    }
-
-    isNoteQueued(noteId) {
-        return this.syncQueue.some(job => 
-            job.noteId === noteId && job.status === 'pending'
-        );
-    }
-
-    // ================================
-    // Timer Functionality
-    // ================================
 
     toggleTimer() {
-        if (this.timerState.isRunning) {
-            this.stopTimer();
-        } else {
-            this.startTimer();
+        this.timer.running ? this.stopTimer() : this.startTimer();
+    }
+
+    playAmbient() {
+        if (this.ambientAudio) {
+            this.ambientAudio.pause();
+            this.ambientAudio = null;
+        }
+        if (this.cfg.ambientSound === 'none') return;
+        try {
+            this.ambientAudio = new Audio(`./audio/${this.cfg.ambientSound}.mp3`);
+            this.ambientAudio.loop = true;
+            this.ambientAudio.volume = this.cfg.volume / 100;
+            this.ambientAudio.play().catch(()=>{});
+        } catch(_) {}
+    }
+
+    stopAmbient() {
+        if (this.ambientAudio) {
+            this.ambientAudio.pause();
+            this.ambientAudio = null;
         }
     }
 
     startTimer() {
-        this.timerState.isRunning = true;
-        this.timerState.timeLeft = this.settings.timerDuration * 60;
-        this.timer.classList.remove('hidden');
-        
-        this.timerState.interval = setInterval(() => {
-            this.timerState.timeLeft--;
+        this.timer.running = true;
+        this.timerEl.classList.remove('hidden');
+        this.playAmbient();
+        this.timer.iv = setInterval(() => {
+            this.timer.left--;
             this.updateTimerDisplay();
-            
-            if (this.timerState.timeLeft <= 0) {
-                this.timerFinished();
-            }
+            const l = this.timer.left;
+            this.timerEl.className = l <= 0 ? 'danger' : l <= 60 ? 'danger' : l <= 180 ? 'warn' : '';
+            if (l <= 0) { this.stopTimer(); toast("Time's up! Great session.", 'success'); }
         }, 1000);
-        
-        this.updateTimerDisplay();
-
-        this.rainSound.play(); // Start rain sound when timer starts
     }
 
     stopTimer() {
-        this.timerState.isRunning = false;
-        clearInterval(this.timerState.interval);
-        this.timer.classList.add('hidden');
-        this.timer.classList.remove('warning', 'danger');
-
-        this.rainSound.stop(); // Stop rain sound when timer stops
+        clearInterval(this.timer.iv);
+        this.timer.running = false;
+        this.stopAmbient();
+        this.timer.left = this.cfg.timerMin * 60;
+        this.updateTimerDisplay();
+        this.timerEl.classList.add('hidden');
+        this.timerEl.className = 'hidden';
+        $('btn-timer').textContent = this.cfg.timerMin + ':00';
     }
 
-    updateTimerDisplay() {
-        const minutes = Math.floor(this.timerState.timeLeft / 60);
-        const seconds = this.timerState.timeLeft % 60;
-        const display = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-        this.timer.textContent = display;
-        
-        // Visual feedback for time remaining
-        if (this.timerState.timeLeft <= 60) {
-            this.timer.classList.add('danger');
-        } else if (this.timerState.timeLeft <= 300) {
-            this.timer.classList.add('warning');
-        }
-    }
-
-    timerFinished() {
-        this.stopTimer();
-        this.showNotification('Timer finished! Great job writing!', 'success');
-        
-        // Auto-save when timer finishes
-        if (this.editor.value.trim()) {
-            this.autosaveNote();
-        }
-    }
-
-    // ================================
-    // UI Controls
-    // ================================
-
-    toggleSidebar() {
-        this.sidebar.classList.toggle('open');
-        if (this.sidebar.classList.contains('open')) {
-            this.loadNotesHistory();
-        }
-    }
-
-    closeSidebar() {
-        this.sidebar.classList.remove('open');
-    }
-
+    // ── Fullscreen ─────────────────────────
     toggleFullscreen() {
-        document.body.classList.toggle('fullscreen');
-        if (document.fullscreenElement) {
-            document.exitFullscreen();
-        } else {
-            document.documentElement.requestFullscreen();
+        document.fullscreenElement
+            ? document.exitFullscreen()
+            : document.documentElement.requestFullscreen().catch(()=>{});
+    }
+
+    // ── Service Worker & Storage ───────────
+    registerSW() {
+        if ('serviceWorker' in navigator)
+            navigator.serviceWorker.register('./sw.js').catch(()=>{});
+    }
+
+    async requestPersistence() {
+        if (navigator.storage && navigator.storage.persist) {
+            try {
+                const isPersisted = await navigator.storage.persisted();
+                if (!isPersisted) await navigator.storage.persist();
+            } catch (_) {}
         }
-    }
-
-    toggleTheme() {
-        const currentTheme = document.body.className.includes('theme-dark') ? 'dark' : 'light';
-        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-        
-        document.body.className = document.body.className.replace(/theme-\w+/, `theme-${newTheme}`);
-        this.settings.theme = newTheme;
-        this.saveSettings();
-    }
-
-    openModal(modalId) {
-        const modal = document.getElementById(modalId);
-        const overlay = document.getElementById('modal-overlay');
-        
-        if (modalId === 'github-modal') {
-            this.loadGitHubSettings();
-        }
-        
-        modal.classList.add('active');
-        overlay.classList.add('active');
-    }
-
-    closeModal(modalId) {
-        const modal = document.getElementById(modalId);
-        const overlay = document.getElementById('modal-overlay');
-        
-        modal.classList.remove('active');
-        overlay.classList.remove('active');
-    }
-
-    // ================================
-    // Settings Management
-    // ================================
-
-    loadSettings() {
-        const saved = localStorage.getItem('gitwrite-settings');
-        if (saved) {
-            this.settings = { ...this.settings, ...JSON.parse(saved) };
-        }
-        
-        this.applySettings();
-    }
-
-    saveSettings() {
-        localStorage.setItem('gitwrite-settings', JSON.stringify(this.settings));
-    }
-
-    applySettings() {
-        // Apply theme
-        document.body.className = `theme-${this.settings.theme}`;
-        
-        // Apply font settings
-        this.editor.style.fontSize = `${this.settings.fontSize}px`;
-        this.editor.className = `editor font-${this.settings.fontFamily}`;
-        
-        // Update UI controls
-        document.getElementById('font-size').value = this.settings.fontSize;
-        document.getElementById('font-size-value').textContent = `${this.settings.fontSize}px`;
-        document.getElementById('font-family').value = this.settings.fontFamily;
-        document.getElementById('timer-duration').value = this.settings.timerDuration;
-        document.getElementById('autosave-interval').value = this.settings.autosaveInterval;
-
-        // Apply typing sound settings
-        document.getElementById('typing-sound-enabled').checked = this.settings.typingSoundEnabled;
-        document.getElementById('typing-volume').value = this.settings.typingVolume;
-        if (this.typingAudio) {
-            this.typingAudio.volume = this.settings.typingVolume / 100;
-        }
-    }
-
-    updateFontSize() {
-        const size = document.getElementById('font-size').value;
-        this.settings.fontSize = parseInt(size);
-        this.editor.style.fontSize = `${size}px`;
-        document.getElementById('font-size-value').textContent = `${size}px`;
-        this.saveSettings();
-    }
-
-    updateFontFamily() {
-        const family = document.getElementById('font-family').value;
-        this.settings.fontFamily = family;
-        this.editor.className = `editor font-${family}`;
-        this.saveSettings();
-    }
-
-    updateTimerDuration() {
-        this.settings.timerDuration = parseInt(document.getElementById('timer-duration').value);
-        this.saveSettings();
-    }
-
-    updateAutosaveInterval() {
-        this.settings.autosaveInterval = parseInt(document.getElementById('autosave-interval').value);
-        this.saveSettings();
-    }
-
-    updateTypingSoundEnabled() {
-        this.settings.typingSoundEnabled = document.getElementById('typing-sound-enabled').checked;
-        this.saveSettings();
-    }
-
-    updateTypingVolume() {
-        const volume = document.getElementById('typing-volume').value;
-        this.settings.typingVolume = parseInt(volume, 10);
-        if (this.typingAudio) {
-            this.typingAudio.volume = this.settings.typingVolume / 100;
-        }
-        this.saveSettings();
-    }
-
-    // ================================
-    // GitHub Settings
-    // ================================
-
-    loadGitHubSettings() {
-        document.getElementById('github-token').value = this.github.token;
-        document.getElementById('github-owner').value = this.github.owner;
-        document.getElementById('github-repo').value = this.github.repo;
-        document.getElementById('github-branch').value = this.github.branch;
-        document.getElementById('github-path').value = this.github.pathTemplate;
-        document.getElementById('commit-message').value = this.github.commitMessage;
-        document.getElementById('remember-token').checked = this.github.rememberToken;
-    }
-
-    async saveGitHubSettings() {
-        const token = document.getElementById('github-token').value;
-        const owner = document.getElementById('github-owner').value;
-        const repo = document.getElementById('github-repo').value;
-        const branch = document.getElementById('github-branch').value || 'main';
-        const pathTemplate = document.getElementById('github-path').value;
-        const commitMessage = document.getElementById('commit-message').value;
-
-        if (!token || !owner || !repo) {
-            this.showNotification('Please fill in required GitHub settings', 'error');
-            return;
-        }
-
-        // Test connection before saving
-        try {
-            const service = new GitHubService(token);
-            await service.getFile(owner, repo, 'README.md', branch).catch(() => {
-                // Ignore if README.md doesn't exist
-            });
-
-            this.github = {
-                token,
-                owner,
-                repo,
-                branch,
-                pathTemplate: pathTemplate || 'notes/{{date}}.md',
-                commitMessage: commitMessage || 'Add note {{date}}'
-            };
-
-            localStorage.setItem('github-settings', JSON.stringify({
-                ...this.github,
-                token: this.github.rememberToken ? token : ''
-            }));
-
-            this.closeModal('github-modal');
-            this.showNotification('GitHub settings saved', 'success');
-        } catch (error) {
-            console.error('GitHub connection test failed:', error);
-            this.showNotification('Invalid GitHub settings', 'error');
-        }
-    }
-
-    forgetToken() {
-        if (confirm('This will clear your GitHub token and all pending sync jobs. Continue?')) {
-            this.github.token = '';
-            localStorage.removeItem('gitwrite-github');
-            sessionStorage.removeItem('gitwrite-github');
-            
-            // Clear sync queue
-            const transaction = this.db.transaction(['queue'], 'readwrite');
-            const store = transaction.objectStore('queue');
-            store.clear();
-            
-            this.loadGitHubSettings();
-            this.loadSyncQueue();
-            this.showNotification('GitHub token forgotten', 'success');
-        }
-    }
-
-    // ================================
-    // Event Handlers
-    // ================================
-
-    handleKeyboardShortcuts(e) {
-        const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-        const cmdKey = isMac ? e.metaKey : e.ctrlKey;
-
-        if (cmdKey && e.key === 's') {
-            e.preventDefault();
-            if (e.shiftKey) {
-                this.saveLocal();
-            } else {
-                this.saveToGitHub();
-            }
-        }
-    }
-
-    handleGlobalKeyboard(e) {
-        const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-        const cmdKey = isMac ? e.metaKey : e.ctrlKey;
-
-        if (e.key === 'Escape') {
-            this.closeSidebar();
-            document.querySelectorAll('.modal.active').forEach(modal => {
-                modal.classList.remove('active');
-            });
-            document.getElementById('modal-overlay').classList.remove('active');
-        }
-
-        if (cmdKey) {
-            switch (e.key) {
-                case 'n':
-                    e.preventDefault();
-                    this.newNote();
-                    break;
-                case 'b':
-                    e.preventDefault();
-                    this.toggleSidebar();
-                    break;
-            }
-        }
-    }
-
-    handleOnline() {
-        this.updateSyncIndicator('online');
-        this.processSyncQueue();
-    }
-
-    handleOffline() {
-        this.updateSyncIndicator('offline');
-    }
-
-    updateSyncIndicator(status) {
-        this.syncIndicator.className = `sync-indicator ${status}`;
-        
-        const titles = {
-            online: 'Online',
-            offline: 'Offline',
-            syncing: 'Syncing...'
-        };
-        
-        this.syncIndicator.title = titles[status] || status;
-    }
-
-    checkOnlineStatus() {
-        this.updateSyncIndicator(navigator.onLine ? 'online' : 'offline');
-    }
-
-    handleBeforeUnload(e) {
-        if (this.editor.value.trim() && this.editor.value !== this.currentNote.content) {
-            e.preventDefault();
-            e.returnValue = '';
-        }
-    }
-
-    syncNow() {
-        if (!navigator.onLine) {
-            this.showNotification('No internet connection', 'error');
-            return;
-        }
-        
-        this.processSyncQueue();
-    }
-
-    // ================================
-    // Utility Functions
-    // ================================
-
-    restoreNote() {
-        // Try to restore from localStorage or sessionStorage
-        const githubSettings = localStorage.getItem('gitwrite-github') || 
-                              sessionStorage.getItem('gitwrite-github');
-        
-        if (githubSettings) {
-            this.github = { ...this.github, ...JSON.parse(githubSettings) };
-        }
-        
-        // Focus editor
-        setTimeout(() => {
-            this.editor.focus();
-        }, 100);
-    }
-
-    startAutosave() {
-        // Initial word count
-        this.updateWordCount();
-        
-        // Start processing sync queue if online
-        if (navigator.onLine) {
-            setTimeout(() => {
-                this.processSyncQueue();
-            }, 1000);
-        }
-        
-        // Clean up completed jobs periodically
-        setInterval(() => {
-            this.clearCompletedJobs();
-        }, 5 * 60 * 1000); // Every 5 minutes
-    }
-
-    showNotification(message, type = 'info') {
-        const notification = document.createElement('div');
-        notification.className = `notification ${type}`;
-        notification.textContent = message;
-        
-        document.getElementById('notifications').appendChild(notification);
-        
-        setTimeout(() => {
-            notification.classList.add('show');
-        }, 100);
-        
-        setTimeout(() => {
-            notification.classList.remove('show');
-            setTimeout(() => {
-                notification.remove();
-            }, 300);
-        }, 3000);
     }
 }
 
-// ================================
-// Global Functions
-// ================================
-
-function closeModal(modalId) {
-    gitwrite.closeModal(modalId);
-}
-
-// ================================
-// Initialize App
-// ================================
-
-let gitwrite;
-
-document.addEventListener('DOMContentLoaded', () => {
-    gitwrite = new GitWrite();
-});
-
-// Make gitwrite globally available for onclick handlers
-window.gitwrite = gitwrite;
+// ══════════════════════════════════════════
+// Boot
+// ══════════════════════════════════════════
+let app;
+openDB().then(db => { app = new TheeWrite(db); });

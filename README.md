@@ -1,22 +1,22 @@
-# [GitWrite](https://gitwrite-info.vercel.app/)
+# [TheeWrite](https://gitwrite-info.vercel.app/)
 
 ![demo](https://github.com/user-attachments/assets/2743a0ed-e7b9-4b03-bccc-5265c9034ee5)
 
+TheeWrite is a premium, distraction-free web app that lets you freewrite your thoughts, ideas, or brain dumps—saving them **securely and completely offline** directly into your browser.
 
-GitWrite is a simple, distraction-free web app that lets you freewrite your thoughts, ideas, or code snippets — and save them **privately to your own GitHub repository**.
-
-Inspired by Freewrite, 
-GitWrite adds a personal twist: your words stay yours — no cloud snooping, no subscriptions, just your own private Git space.
+Inspired by hardware freewriting devices, TheeWrite adds a beautiful, sensory-rich digital twist: your words stay entirely yours. No cloud snooping, no accounts, no subscriptions. Just pure, uninterrupted focus.
 
 ---
 
 ## ✨ Features
 
-* **Distraction-free writing** – clean and minimal interface.
-* **Private by default** – connect your personal GitHub repo.
-* **Freewriting mode** – write continuously without worrying about grammar, spelling, or structure.
-* **All local & secure** – your data stays on your terms.
-* **Completely free** – no subscriptions, no hidden costs.
+* **Distraction-Free Minimalist UI** – A clean, warm-cream interface that gets out of your way.
+* **100% Local-First & Private** – All data is stored persistently in your browser via IndexedDB. No cloud servers are ever used.
+* **Immersive Ambient Sounds** – Block out the world with built-in, looping ambient audio (Rain, Cafe, Campfire) synced perfectly with your writing timer.
+* **Premium Typography** – Switch between elegant serif, clean sans, or gritty vintage typewriter fonts to match your mood.
+* **Reread Mode** – A dedicated, read-only view designed for you to reflect on your past writing in beautiful formatting.
+* **Tag Cloud & History** – Organize your thoughts effortlessly with inline tags `#like-this` and visualize them in a dynamic tag cloud.
+* **Export Anywhere** – Export your freewrites cleanly to `.md`, `.txt`, or print them directly to PDF.
 
 ---
 
@@ -37,7 +37,6 @@ It’s a great way to break creative blocks and let your mind flow freely.
 # [A coffee?](https://buymeacoffee.com/sahilrane_)
 
 ---
-
 
 ## 📜 License
 

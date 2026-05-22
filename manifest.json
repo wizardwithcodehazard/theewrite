@@ -1,7 +1,7 @@
 {
-  "name": "GitWrite - Distraction-Free Writing",
-  "short_name": "GitWrite",
-  "description": "A distraction-free writing app with GitHub integration and offline support",
+  "name": "TheeWrite - Distraction-Free Writing",
+  "short_name": "TheeWrite",
+  "description": "A premium distraction-free freewriting app with ambient sounds, local-first storage, and beautiful typography.",
   "version": "1.0.0",
   "start_url": "./",
   "display": "standalone",
@@ -68,7 +68,7 @@
   
   "protocol_handlers": [
     {
-      "protocol": "web+gitwrite",
+      "protocol": "web+theewrite",
       "url": "/?action=open&content=%s"
     }
   ],

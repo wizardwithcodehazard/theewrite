@@ -1,316 +1,256 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" href="./assets/favicon-96x96.png" sizes="96x96">
+    <title>theewrite — write freely</title>
+    <meta name="description" content="A minimal, private freewriting space. No accounts. No cloud. Just words.">
     <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg">
-    <link rel="shortcut icon" href="./assets/favicon.ico">
-    <link rel="apple-touch-icon" sizes="180x180" href="./assets/apple-touch-icon.png">
-    <title>gitwrite</title>
-    <meta name="description" content="A distraction-free writing app with GitHub integration">
     <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="styles.css">
+
+    <!-- Google Fonts: non-blocking -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;500&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,300;0,400;0,700;1,300;1,400&family=Special+Elite&family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap"
+        rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript>
+        <link
+            href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,300;0,400;0,700;1,300;1,400&family=Special+Elite&family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap"
+            rel="stylesheet">
+    </noscript>
 
-    <!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-MPCXSNVBQ8"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-MPCXSNVBQ8');
-</script>
+    <!-- Google Analytics -->
+    <script defer src="https://www.googletagmanager.com/gtag/js?id=G-MPCXSNVBQ8"></script>
+    <script>window.dataLayer = window.dataLayer || []; function gtag() { dataLayer.push(arguments); } gtag('js', new Date()); gtag('config', 'G-MPCXSNVBQ8');</script>
 </head>
-<body class="theme-light">
-    <!-- Main Editor Container -->
-    <div id="app" class="app">
-        <!-- Editor Area -->
-        <div id="editor-container" class="editor-container">
-            <textarea 
-                id="editor" 
-                class="editor" 
-                placeholder="Begin your freewriting..."
-                spellcheck="false"
-            ></textarea>
-            
-            <!-- Timer Display -->
-            <div id="timer" class="timer hidden">15:00</div>
-            
-            <!-- Word Count -->
-            <div id="word-count" class="word-count">0 words</div>
-        </div>
 
-        <!-- Bottom Toolbar -->
-        <div id="toolbar" class="toolbar">
-            <div class="toolbar-left">
-                <!-- New Note -->
-                <button id="new-note" class="btn btn-secondary" title="New Note (Ctrl+N)">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
-                        <polyline points="14,2 14,8 20,8"/>
-                        <line x1="12" y1="18" x2="12" y2="12"/>
-                        <line x1="9" y1="15" x2="15" y2="15"/>
-                    </svg>
-                    New
-                </button>
+<body>
 
-                <!-- History Toggle -->
-                <button id="history-toggle" class="btn btn-secondary" title="History (Ctrl+B)">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-                        <polyline points="9,22 9,12 15,12 15,22"/>
-                    </svg>
-                    History
-                </button>
+    <!-- ═══════════════════════════════════════
+     MAIN APP
+═══════════════════════════════════════ -->
+    <div id="app">
 
-                <!-- Sync Status -->
-                <div id="sync-status" class="sync-status">
-                    <span id="sync-indicator" class="sync-indicator online" title="Online"></span>
-                    <span id="queue-count" class="queue-count hidden">0</span>
+        <!-- Editor area -->
+        <main id="editor-area">
+
+            <!-- Top meta row: word count left, tags right -->
+            <div id="meta-bar">
+                <div id="meta-left">
+                    <span id="word-count">0 words</span>
+                    <span id="timer" class="hidden"></span>
+                </div>
+                <div id="meta-right">
+                    <div id="tag-pills"></div>
+                    <input id="tag-input" type="text" placeholder="tag + ↵" autocomplete="off" spellcheck="false">
                 </div>
             </div>
 
-            <div class="toolbar-center">
-                <!-- Timer Toggle -->
-                <button id="timer-toggle" class="btn btn-secondary" title="Toggle Timer">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <polyline points="12,6 12,12 16,14"/>
-                    </svg>
-                </button>
-
-                <!-- Fullscreen Toggle -->
-                <button id="fullscreen-toggle" class="btn btn-secondary" title="Fullscreen">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-                    </svg>
-                </button>
+            <!-- The writing surface -->
+            <div id="editor-wrap">
+                <textarea id="editor" placeholder="Begin your freewrite…" spellcheck="false" autocomplete="off"
+                    autocorrect="off" autocapitalize="off"></textarea>
             </div>
 
-            <div class="toolbar-right">
-                <!-- Theme Toggle -->
-                <button id="theme-toggle" class="btn btn-secondary" title="Toggle Theme">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-                    </svg>
-                </button>
+        </main>
 
-                <!-- Settings -->
-                <button id="settings-btn" class="btn btn-secondary" title="Settings">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="3"/>
-                        <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1m17-4a4 4 0 0 1-8 0 4 4 0 0 1 8 0zM7 21a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/>
-                    </svg>
-                </button>
-
-                <!-- Save Options -->
-                <div class="save-group">
-                    <button id="save-local" class="btn btn-primary" title="Save Locally (Ctrl+Shift+S)">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                            <polyline points="7,10 12,15 17,10"/>
-                            <line x1="12" y1="15" x2="12" y2="3"/>
-                        </svg>
-                        Local
-                    </button>
-                    <button id="save-github" class="btn btn-success" title="Save to GitHub (Ctrl+S)">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
-                        </svg>
-                        GitHub
-                    </button>
-                </div>
+        <!-- ── Bottom toolbar (inspo-style text controls) ── -->
+        <footer id="toolbar">
+            <div id="tb-left">
+                <button class="tb-item" id="btn-new" title="Ctrl+N">New</button>
+                <span class="tb-sep">·</span>
+                <button class="tb-item" id="btn-history" title="Ctrl+H">History</button>
+                <span class="tb-sep">·</span>
+                <!-- Font controls -->
+                <button class="tb-item font-opt active" data-font="Lato">Lato</button>
+                <span class="tb-sep">·</span>
+                <button class="tb-item font-opt" data-font="SpecialElite">Typewriter</button>
+                <span class="tb-sep">·</span>
+                <button class="tb-item font-opt" data-font="CourierPrime">Courier</button>
+                <span class="tb-sep">·</span>
+                <button class="tb-item font-opt" data-font="Playfair">Playfair</button>
+                <span class="tb-sep">·</span>
+                <button class="tb-item font-opt" data-font="Baskerville">Baskerville</button>
+                <span class="tb-sep">·</span>
+                <!-- Font size popup trigger -->
+                <button class="tb-item" id="btn-fontsize"><span id="font-size-label">18px</span></button>
             </div>
-        </div>
+
+            <div id="tb-right">
+                <button class="tb-item" id="btn-reread" title="Reread mode">Reread</button>
+                <span class="tb-sep">·</span>
+                <button class="tb-item" id="btn-timer">15:00</button>
+                <span class="tb-sep">·</span>
+                <button class="tb-item" id="btn-export">Export</button>
+                <span class="tb-sep">·</span>
+                <button class="tb-item" id="btn-fullscreen">Fullscreen</button>
+                <span class="tb-sep">·</span>
+                <button class="tb-item" id="btn-settings">Settings</button>
+                <span class="tb-sep">·</span>
+                <button class="tb-item tb-save" id="btn-save">Save ↓</button>
+            </div>
+        </footer>
+
     </div>
 
-    <!-- History Sidebar -->
-    <div id="sidebar" class="sidebar">
-        <div class="sidebar-header">
-            <input type="search" id="search-notes" placeholder="Search notes...">
-            <button id="sidebar-close" class="btn-close" title="Close (Esc)">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="6" x2="6" y2="18"/>
-                    <line x1="6" y1="6" x2="18" y2="18"/>
+    <!-- ═══════════════════════════════════════
+     FONT SIZE POPUP
+═══════════════════════════════════════ -->
+    <div id="fontsize-popup" class="popup hidden">
+        <button class="size-opt" data-size="14">14px</button>
+        <button class="size-opt" data-size="16">16px</button>
+        <button class="size-opt" data-size="18">18px</button>
+        <button class="size-opt" data-size="20">20px</button>
+        <button class="size-opt" data-size="22">22px</button>
+        <button class="size-opt" data-size="24">24px</button>
+        <button class="size-opt" data-size="26">26px</button>
+    </div>
+
+    <!-- ═══════════════════════════════════════
+     EXPORT POPUP
+═══════════════════════════════════════ -->
+    <div id="export-popup" class="popup hidden">
+        <button class="size-opt" id="export-md">Download .md</button>
+        <button class="size-opt" id="export-txt">Download .txt</button>
+        <button class="size-opt" id="export-pdf">Print / PDF</button>
+    </div>
+
+    <!-- ═══════════════════════════════════════
+     HISTORY SIDEBAR
+═══════════════════════════════════════ -->
+    <aside id="sidebar">
+        <div id="sidebar-head">
+            <h2 id="sidebar-title">History</h2>
+            <div id="sidebar-tabs">
+                <button class="stab active" data-view="list">List</button>
+                <button class="stab" data-view="tagcloud">Tag Cloud</button>
+            </div>
+            <button id="btn-sidebar-close" class="icon-btn" aria-label="Close">
+                <svg viewBox="0 0 24 24">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
             </button>
         </div>
-        <div id="notes-list" class="notes-list">
-            <div class="empty-state">
-                <p>No notes yet. Start writing!</p>
+
+        <div id="sidebar-search-row">
+            <input id="search-notes" type="search" placeholder="Search notes…" autocomplete="off">
+            <div id="tag-filter-wrapper" class="custom-select">
+                <div id="tag-filter-selected" class="select-selected">All tags</div>
+                <div id="tag-filter-options" class="select-options hidden">
+                    <!-- populated by js -->
+                </div>
             </div>
         </div>
-        <div class="sidebar-footer">
-            <button id="sync-now" class="btn btn-primary btn-full">Sync Now</button>
-            <p class="sync-info">
-                <span id="queue-info">No pending syncs</span>
-            </p>
+
+        <!-- List view -->
+        <div id="notes-list" class="sidebar-view"></div>
+
+        <!-- Tag cloud view -->
+        <div id="tag-cloud-view" class="sidebar-view hidden"></div>
+    </aside>
+
+    <!-- ═══════════════════════════════════════
+     REREAD MODE
+═══════════════════════════════════════ -->
+    <div id="reread-panel" class="hidden">
+        <div id="reread-head">
+            <span id="reread-title"></span>
+            <span id="reread-meta"></span>
+            <button id="btn-reread-close" class="icon-btn">
+                <svg viewBox="0 0 24 24">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+            </button>
+        </div>
+        <div id="reread-body">
+            <div id="reread-content"></div>
+        </div>
+        <div id="reread-nav">
+            <button id="btn-reread-prev">← Previous</button>
+            <span id="reread-count"></span>
+            <button id="btn-reread-next">Next →</button>
         </div>
     </div>
 
-    <!-- Settings Modal -->
-    <div id="settings-modal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Settings</h3>
-                <button class="btn-close" onclick="closeModal('settings-modal')">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="18" y1="6" x2="6" y2="18"/>
-                        <line x1="6" y1="6" x2="18" y2="18"/>
+    <!-- ═══════════════════════════════════════
+     SETTINGS MODAL
+═══════════════════════════════════════ -->
+    <div id="settings-modal" class="modal hidden">
+        <div class="modal-box">
+            <div class="modal-head">
+                <h2>Settings</h2>
+                <button class="icon-btn modal-close" aria-label="Close">
+                    <svg viewBox="0 0 24 24">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
                     </svg>
                 </button>
             </div>
             <div class="modal-body">
-                <div class="setting-group">
-                    <label for="font-size">Font Size</label>
-                    <input type="range" id="font-size" min="16" max="26" value="18">
-                    <span id="font-size-value">18px</span>
-                </div>
-                
-                <div class="setting-group">
-                    <label for="font-family">Font Family</label>
-                    <select id="font-family">
-                        <option value="Lato">Lato</option>
-                        <option value="system">System</option>
-                        <option value="serif">Serif</option>
-                        <option value="monospace">Monospace</option>
-                    </select>
-                </div>
-
-                <div class="setting-group">
-                    <label for="timer-duration">Timer Duration (minutes)</label>
-                    <input type="number" id="timer-duration" min="5" max="120" value="15">
-                </div>
-
-                <div class="setting-group">
-                    <label for="autosave-interval">Autosave Interval (seconds)</label>
-                    <input type="number" id="autosave-interval" min="10" max="300" value="30">
-                </div>
-
-                <div class="setting-group">
-                    <label for="rain-volume">Rain Sound Volume</label>
-                    <input 
-                        type="range" 
-                        id="rain-volume" 
-                        min="0" 
-                        max="100" 
-                        value="50"
-                        onchange="gitwrite.rainSound.setVolume(this.value)"
-                    >
-                </div>
-
-                <div class="setting-group">
-                    <label>Typing Sound</label>
-                    <div class="token-options"> <!-- Reusing style for layout -->
-                        <label>
-                            <input type="checkbox" id="typing-sound-enabled">
-                            Enable
-                        </label>
+                <div class="setting-row">
+                    <label>Font size</label>
+                    <div class="setting-control">
+                        <input type="range" id="font-size" min="14" max="28" value="18">
+                        <span id="font-size-val">18px</span>
                     </div>
                 </div>
-                <div class="setting-group">
-                    <label for="typing-volume">Typing Sound Volume</label>
-                    <input type="range" id="typing-volume" min="0" max="100" value="50">
+                <div class="setting-row">
+                    <label>Timer duration</label>
+                    <div class="setting-control">
+                        <input type="number" id="timer-duration" min="5" max="120" value="15"> <span>min</span>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <label>Autosave</label>
+                    <div class="setting-control">
+                        <input type="number" id="autosave-interval" min="10" max="300" value="30"> <span>sec</span>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <label>Typing sounds</label>
+                    <div class="setting-control">
+                        <input type="checkbox" id="typing-sound-enabled">
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <label>Sound volume</label>
+                    <div class="setting-control">
+                        <input type="range" id="typing-volume" min="0" max="100" value="50">
+                        <span id="vol-val">50%</span>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <label>Ambient sound</label>
+                    <div class="setting-control">
+                        <div id="ambient-sound-wrapper" class="custom-select">
+                            <div id="ambient-sound-selected" class="select-selected">None</div>
+                            <div id="ambient-sound-options" class="select-options hidden">
+                                <div data-val="none" class="selected">None</div>
+                                <div data-val="rain">Rain</div>
+                                <div data-val="campfire">Campfire</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- GitHub Settings Modal -->
-    <div id="github-modal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>GitHub Integration</h3>
-                <button class="btn-close" onclick="closeModal('github-modal')">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="18" y1="6" x2="6" y2="18"/>
-                        <line x1="6" y1="6" x2="18" y2="18"/>
-                    </svg>
-                </button>
-            </div>
-            <div class="modal-body">
-                <div class="setting-group">
-                    <label for="github-token">Personal Access Token</label>
-                    <input type="password" id="github-token" placeholder="Enter your GitHub token">
-                    <div class="token-options">
-                        <label>
-                            <input type="checkbox" id="remember-token">
-                            Remember token (stores in localStorage)
-                        </label>
-                    </div>
-                    <button id="forget-token" class="btn btn-danger btn-small">Forget Token</button>
-                </div>
+    <!-- Overlay -->
+    <div id="overlay" class="hidden"></div>
 
-                <div class="setting-group">
-                    <label for="github-owner">Repository Owner</label>
-                    <input type="text" id="github-owner" placeholder="username">
-                </div>
+    <!-- Toast -->
+    <div id="toast"></div>
 
-                <div class="setting-group">
-                    <label for="github-repo">Repository Name</label>
-                    <input type="text" id="github-repo" placeholder="my-notes">
-                </div>
+    <!-- Print styles are injected by app.js -->
+    <div id="print-area" class="hidden"></div>
 
-                <div class="setting-group">
-                    <label for="github-branch">Branch</label>
-                    <input type="text" id="github-branch" placeholder="main (auto-detect if blank)">
-                </div>
-
-                <div class="setting-group">
-                    <label for="github-path">Path Template</label>
-                    <input type="text" id="github-path" placeholder="notes/{{date}}.md" value="notes/{{date}}.md">
-                    <small>Use {{date}} for YYYY-MM-DD, {{timestamp}} for full timestamp</small>
-                </div>
-
-                <div class="setting-group">
-                    <label for="commit-message">Commit Message Template</label>
-                    <input type="text" id="commit-message" placeholder="Add note {{date}}" value="Add note {{date}}">
-                </div>
-
-                <div class="github-actions">
-                    <button id="test-github" class="btn btn-secondary">Test Connection</button>
-                    <button id="save-github-settings" class="btn btn-primary">Save Settings</button>
-                </div>
-
-                <div class="github-help">
-                    <details>
-                        <summary>Help: Creating a GitHub Token</summary>
-                        <p><strong>1.</strong> Go to <a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer">GitHub → Settings → Developer settings → Personal access tokens</a>.</p>
-
-                        <p><strong>2.</strong> Create a <strong>fine-grained token</strong> (recommended):<br>
-                        – Click “Generate new token” → “Fine-grained token.”<br>
-                        – Name it (e.g., <em>GitWrite</em>) and set an expiration (e.g., 30 days).<br>
-                        – Under <strong>Repository access</strong>, choose <em>“Only select repositories”</em> and pick your repo.<br>
-                        – Under <strong>Repository permissions</strong>, set <em>Contents → Read and Write</em> only.<br>
-                        – Leave all other permissions as “No access.”<br>
-                        – Click <strong>Generate token</strong> and copy it immediately.</p>
-
-                        <p><strong>3.</strong> (Optional) For classic tokens, select the <code>repo</code> scope for private repositories (or <code>public_repo</code> for public ones).</p>
-
-                        <p><strong>4.</strong> Keep your token secure:<br>
-                        – Never share it publicly.<br>
-                        – Prefer fine-grained tokens with minimal scopes and expiration.<br>
-                        – If it leaks, revoke it immediately from your
-                        <a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer">token settings</a>.
-                        </p>
-                    </details>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Notification Container -->
-    <div id="notifications" class="notifications"></div>
-
-    <!-- Overlay for modals -->
-    <div id="modal-overlay" class="modal-overlay"></div>
-    
-    <script src="services/audio.js"></script>
-    <script src="services/github.js"></script>
     <script src="app.js"></script>
 </body>
+
 </html>
