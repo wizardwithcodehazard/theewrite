@@ -1,8 +1,13 @@
 # [TheeWrite](https://gitwrite-info.vercel.app/)
 
-<img width="917" height="524" alt="f2" src="https://github.com/user-attachments/assets/9dcdc31a-b948-46d9-bac9-d1504f4ba8a3" />
-<br>
-<br>
+<p align="center">
+  <img width="902" height="521" alt="theewritebanner" src="https://github.com/user-attachments/assets/90255e5f-b86c-49a5-8cf3-cec14c61cbd9" />
+</p>
+
+<p align="center">
+  <img width="917" height="524" alt="f2" src="https://github.com/user-attachments/assets/9dcdc31a-b948-46d9-bac9-d1504f4ba8a3" />
+</p>
+
 TheeWrite is a premium, distraction-free web app that lets you freewrite your thoughts, ideas, or brain dumps—saving them <strong>securely and completely offline(soon transitioning into desktop app)</strong> directly into your browser.
 <br>
 TheeWrite adds a beautiful, sensory-rich digital twist: your words stay entirely yours. No cloud snooping, no accounts, no subscriptions. Just pure, uninterrupted focus.
