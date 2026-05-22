@@ -1,7 +1,7 @@
-# [TheeWrite](https://gitwrite-info.vercel.app/)
+# [TheeWrite](https://theewrite.pages.dev/landing.html)
 
 <p align="center">
-  <img width="902" height="521" alt="theewritebanner" src="https://github.com/user-attachments/assets/90255e5f-b86c-49a5-8cf3-cec14c61cbd9" />
+  <img width="902" height="400" alt="theewritebanner" src="https://github.com/user-attachments/assets/0fd975f0-ce53-4af0-8e92-34e5e640712e" />
 </p>
 
 <p align="center">
