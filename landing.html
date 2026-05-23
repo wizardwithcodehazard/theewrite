@@ -169,6 +169,16 @@
             align-items: center;
         }
 
+        .mobile-menu-btn {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: var(--gray-600);
+            cursor: pointer;
+            padding: 0.5rem;
+        }
+
         .nav a {
             text-decoration: none;
             color: var(--gray-600);
@@ -587,13 +597,20 @@
         /* Mobile-first responsive design */
         @media (max-width: 768px) {
             .header-content {
-                flex-direction: column;
+                flex-direction: row;
+                flex-wrap: wrap;
+                justify-content: space-between;
+                align-items: center;
                 gap: 1rem;
                 padding: 1rem;
             }
 
+            .mobile-menu-btn {
+                display: block;
+            }
+
             .nav {
-                display: flex;
+                display: none;
                 flex-direction: column;
                 width: 100%;
                 gap: 1rem;
@@ -602,6 +619,12 @@
                 box-shadow: none;
                 border-top: none;
                 position: relative;
+                padding-top: 1rem;
+                border-top: 1px solid var(--gray-200);
+            }
+
+            .nav.active {
+                display: flex;
             }
 
             .social-links {
@@ -735,7 +758,10 @@
                     <img src="assets/favicon-96x96.png" alt="TheeWrite Logo">
                     <span class="logo-text">theewrite</span>
                 </a>
-                <div class="nav">
+                <button class="mobile-menu-btn" id="mobileMenuBtn">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <div class="nav" id="navMenu">
                     <a href="#features">Features</a>
                     <a href="#how-it-works">How It Works</a>
                     <div class="social-links">
@@ -888,7 +914,30 @@
         </div>
     </footer>
 
+    <script>
+        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+        const navMenu = document.getElementById('navMenu');
 
+        mobileMenuBtn.addEventListener('click', () => {
+            navMenu.classList.toggle('active');
+            const icon = mobileMenuBtn.querySelector('i');
+            if (navMenu.classList.contains('active')) {
+                icon.classList.remove('fa-bars');
+                icon.classList.add('fa-times');
+            } else {
+                icon.classList.remove('fa-times');
+                icon.classList.add('fa-bars');
+            }
+        });
+
+        // Close menu when clicking a link
+        navMenu.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                navMenu.classList.remove('active');
+                mobileMenuBtn.querySelector('i').classList.remove('fa-times');
+                mobileMenuBtn.querySelector('i').classList.add('fa-bars');
+            });
+        });
+    </script>
 </body>
-
 </html>
