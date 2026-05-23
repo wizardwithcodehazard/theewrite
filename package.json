@@ -1,0 +1,24 @@
+{
+  "name": "gitwrite",
+  "version": "1.0.0",
+  "description": "<p align=\"center\">\r   <img width=\"902\" height=\"400\" alt=\"theewritebanner\" src=\"https://github.com/user-attachments/assets/0fd975f0-ce53-4af0-8e92-34e5e640712e\" />\r </p>",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wizardwithcodehazard/gitwrite.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/wizardwithcodehazard/gitwrite/issues"
+  },
+  "homepage": "https://github.com/wizardwithcodehazard/gitwrite#readme",
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.2"
+  }
+}

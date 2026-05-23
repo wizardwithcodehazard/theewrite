@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>theewrite — write freely</title>
+    <meta name="description" content="A minimal, private freewriting space. No accounts. No cloud. Just words.">
+    <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg">
+    <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png">
+    <meta name="theme-color" content="#FAF9F6">
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- Google Fonts: non-blocking -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,300;0,400;0,700;1,300;1,400&family=Special+Elite&family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap"
+        rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript>
+        <link
+            href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,300;0,400;0,700;1,300;1,400&family=Special+Elite&family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap"
+            rel="stylesheet">
+    </noscript>
+
+    <!-- Google Analytics -->
+    <script defer src="https://www.googletagmanager.com/gtag/js?id=G-MPCXSNVBQ8"></script>
+    <script>window.dataLayer = window.dataLayer || []; function gtag() { dataLayer.push(arguments); } gtag('js', new Date()); gtag('config', 'G-MPCXSNVBQ8');</script>
+</head>
+
+<body>
+
+    <!-- ═══════════════════════════════════════
+     MAIN APP
+═══════════════════════════════════════ -->
+    <div id="app">
+
+        <!-- Editor area -->
+        <main id="editor-area">
+
+            <!-- Top meta row: word count left, tags right -->
+            <div id="meta-bar">
+                <div id="meta-left">
+                    <span id="word-count">0 words</span>
+                    <span id="timer" class="hidden"></span>
+                </div>
+                <div id="meta-right">
+                    <div id="tag-pills"></div>
+                    <input id="tag-input" type="text" placeholder="tag + ↵" autocomplete="off" spellcheck="false">
+                </div>
+            </div>
+
+            <!-- The writing surface -->
+            <div id="editor-wrap">
+                <textarea id="editor" placeholder="Begin your freewrite…" spellcheck="false" autocomplete="off"
+                    autocorrect="off" autocapitalize="off"></textarea>
+            </div>
+
+        </main>
+
+        <!-- ── Bottom toolbar (inspo-style text controls) ── -->
+        <footer id="toolbar">
+            <div id="tb-left">
+                <button class="tb-item" id="btn-new" title="Ctrl+N">New</button>
+                <span class="tb-sep">·</span>
+                <button class="tb-item" id="btn-history" title="Ctrl+H">History</button>
+                <span class="tb-sep">·</span>
+                <!-- Font controls -->
+                <button class="tb-item font-opt active" data-font="Lato">Lato</button>
+                <span class="tb-sep">·</span>
+                <button class="tb-item font-opt" data-font="SpecialElite">Typewriter</button>
+                <span class="tb-sep">·</span>
+                <button class="tb-item font-opt" data-font="CourierPrime">Courier</button>
+                <span class="tb-sep">·</span>
+                <button class="tb-item font-opt" data-font="Playfair">Playfair</button>
+                <span class="tb-sep">·</span>
+                <button class="tb-item font-opt" data-font="Baskerville">Baskerville</button>
+                <span class="tb-sep">·</span>
+                <!-- Font size popup trigger -->
+                <button class="tb-item" id="btn-fontsize"><span id="font-size-label">18px</span></button>
+            </div>
+
+            <div id="tb-right">
+                <button class="tb-item" id="btn-reread" title="Reread mode">Reread</button>
+                <span class="tb-sep">·</span>
+                <button class="tb-item" id="btn-timer">15:00</button>
+                <span class="tb-sep">·</span>
+                <button class="tb-item" id="btn-export">Export</button>
+                <span class="tb-sep">·</span>
+                <button class="tb-item" id="btn-fullscreen">Fullscreen</button>
+                <span class="tb-sep">·</span>
+                <button class="tb-item" id="btn-settings">Settings</button>
+                <span class="tb-sep">·</span>
+                <button class="tb-item tb-save" id="btn-save">Save ↓</button>
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- ═══════════════════════════════════════
+     FONT SIZE POPUP
+═══════════════════════════════════════ -->
+    <div id="fontsize-popup" class="popup hidden">
+        <button class="size-opt" data-size="14">14px</button>
+        <button class="size-opt" data-size="16">16px</button>
+        <button class="size-opt" data-size="18">18px</button>
+        <button class="size-opt" data-size="20">20px</button>
+        <button class="size-opt" data-size="22">22px</button>
+        <button class="size-opt" data-size="24">24px</button>
+        <button class="size-opt" data-size="26">26px</button>
+    </div>
+
+    <!-- ═══════════════════════════════════════
+     EXPORT POPUP
+═══════════════════════════════════════ -->
+    <div id="export-popup" class="popup hidden">
+        <button class="size-opt" id="export-md">Download .md</button>
+        <button class="size-opt" id="export-txt">Download .txt</button>
+        <button class="size-opt" id="export-pdf">Print / PDF</button>
+    </div>
+
+    <!-- ═══════════════════════════════════════
+     HISTORY SIDEBAR
+═══════════════════════════════════════ -->
+    <aside id="sidebar">
+        <div id="sidebar-head">
+            <h2 id="sidebar-title">History</h2>
+            <div id="sidebar-tabs">
+                <button class="stab active" data-view="list">List</button>
+                <button class="stab" data-view="tagcloud">Tag Cloud</button>
+            </div>
+            <button id="btn-sidebar-close" class="icon-btn" aria-label="Close">
+                <svg viewBox="0 0 24 24">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+            </button>
+        </div>
+
+        <div id="sidebar-search-row">
+            <input id="search-notes" type="search" placeholder="Search notes…" autocomplete="off">
+            <div id="tag-filter-wrapper" class="custom-select">
+                <div id="tag-filter-selected" class="select-selected">All tags</div>
+                <div id="tag-filter-options" class="select-options hidden">
+                    <!-- populated by js -->
+                </div>
+            </div>
+        </div>
+
+        <!-- List view -->
+        <div id="notes-list" class="sidebar-view"></div>
+
+        <!-- Tag cloud view -->
+        <div id="tag-cloud-view" class="sidebar-view hidden"></div>
+    </aside>
+
+    <!-- ═══════════════════════════════════════
+     REREAD MODE
+═══════════════════════════════════════ -->
+    <div id="reread-panel" class="hidden">
+        <div id="reread-head">
+            <span id="reread-title"></span>
+            <span id="reread-meta"></span>
+            <button id="btn-reread-close" class="icon-btn">
+                <svg viewBox="0 0 24 24">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+            </button>
+        </div>
+        <div id="reread-body">
+            <div id="reread-content"></div>
+        </div>
+        <div id="reread-nav">
+            <button id="btn-reread-prev">← Previous</button>
+            <span id="reread-count"></span>
+            <button id="btn-reread-next">Next →</button>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════
+     SETTINGS MODAL
+═══════════════════════════════════════ -->
+    <div id="settings-modal" class="modal hidden">
+        <div class="modal-box">
+            <div class="modal-head">
+                <h2>Settings</h2>
+                <button class="icon-btn modal-close" aria-label="Close">
+                    <svg viewBox="0 0 24 24">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="setting-row">
+                    <label>Font size</label>
+                    <div class="setting-control">
+                        <input type="range" id="font-size" min="14" max="28" value="18">
+                        <span id="font-size-val">18px</span>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <label>Timer duration</label>
+                    <div class="setting-control">
+                        <input type="number" id="timer-duration" min="5" max="120" value="15"> <span>min</span>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <label>Autosave</label>
+                    <div class="setting-control">
+                        <input type="number" id="autosave-interval" min="10" max="300" value="30"> <span>sec</span>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <label>Typing sounds</label>
+                    <div class="setting-control">
+                        <input type="checkbox" id="typing-sound-enabled">
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <label>Sound volume</label>
+                    <div class="setting-control">
+                        <input type="range" id="typing-volume" min="0" max="100" value="50">
+                        <span id="vol-val">50%</span>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <label>Ambient sound</label>
+                    <div class="setting-control">
+                        <div id="ambient-sound-wrapper" class="custom-select">
+                            <div id="ambient-sound-selected" class="select-selected">None</div>
+                            <div id="ambient-sound-options" class="select-options hidden">
+                                <div data-val="none" class="selected">None</div>
+                                <div data-val="rain">Rain</div>
+                                <div data-val="campfire">Campfire</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Overlay -->
+    <div id="overlay" class="hidden"></div>
+
+    <!-- Toast -->
+    <div id="toast"></div>
+
+    <!-- Print styles are injected by app.js -->
+    <div id="print-area" class="hidden"></div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>

@@ -1,4 +1,4 @@
-# [TheeWrite](https://theewrite.pages.dev/landing.html)
+# TheeWrite
 
 <p align="center">
   <img width="902" height="400" alt="theewritebanner" src="https://github.com/user-attachments/assets/0fd975f0-ce53-4af0-8e92-34e5e640712e" />
@@ -8,9 +8,20 @@
   <img width="917" height="524" alt="f2" src="https://github.com/user-attachments/assets/9dcdc31a-b948-46d9-bac9-d1504f4ba8a3" />
 </p>
 
-TheeWrite is a premium, distraction-free web app that lets you freewrite your thoughts, ideas, or brain dumps—saving them <strong>securely and completely offline(soon transitioning into desktop app)</strong> directly into your browser.
+TheeWrite is a premium, distraction-free desktop app that lets you freewrite your thoughts, ideas, or brain dumps—saving them **securely and completely offline** directly on your local device.
 <br>
 TheeWrite adds a beautiful, sensory-rich digital twist: your words stay entirely yours. No cloud snooping, no accounts, no subscriptions. Just pure, uninterrupted focus.
+
+---
+
+## 📥 Download & Installation
+
+TheeWrite is available natively for **Windows, macOS, and Linux**.
+
+Head over to the [Releases](https://github.com/wizardwithcodehazard/theewrite/releases) page to download the latest version for your operating system:
+- **Windows**: Download the `.exe` or `.msi` installer.
+- **macOS**: Download the `.dmg` or `.app.tar.gz`.
+- **Linux**: Download the `.AppImage` or `.deb`.
 
 ---
 
